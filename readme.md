@@ -17,7 +17,7 @@ Web chat is a **client only** mod that gives you access to the Minecraft chat of
 - Full support for Minecraft's text formatting (colors, bold, italic, translation, etc.)
 - Support for official click and hover interactions (opening URLs, achievement details, etc.)
 
-![Demo screenshot](media/demo_screenshot.png)
+![Demo screenshot](media/screenshot-1.5.0.jpeg)
 
 # Availability 
 
