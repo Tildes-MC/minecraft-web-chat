@@ -22,7 +22,7 @@ Web chat is a **client only** mod that gives you access to the Minecraft chat of
 # Availability 
 
 - Minecraft version: 
-  - 1.21.11 supported by Web Chat v1.5.0
+  - 1.21.11 supported by Web Chat v1.5.0, v1.6.0
   - 1.21.8 supported by Web Chat v1.4.0
   - 1.21.1 - 1.21.4 are supported up to Web Chat v1.3.0 and not further. 
 - Mod loader: Fabric only
