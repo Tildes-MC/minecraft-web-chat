@@ -25,7 +25,7 @@ public class ChatMessageRepository {
     // DB constants
     private static final String DB_NAME = "chat_messages.db";
     private static final String DATA_DIR = "web-chat";
-    private static final int CURRENT_SCHEMA_VERSION = 2;
+    private static final int CURRENT_SCHEMA_VERSION = 3;
 
     // SQL queries
     private static final String CREATE_MESSAGES_TABLE_QUERY = """
@@ -36,7 +36,7 @@ public class ChatMessageRepository {
             server_name TEXT NOT NULL,
             message_id TEXT NOT NULL,
             message_json TEXT NOT NULL,
-            translations_json TEXT NOT NULL,
+            translations_json TEXT NOT NULL DEFAULT '{}',
             is_ping BOOLEAN NOT NULL,
             minecraft_version TEXT
         )
@@ -99,6 +99,15 @@ public class ChatMessageRepository {
         ALTER TABLE messages ADD COLUMN translations_json TEXT NOT NULL DEFAULT '{}';
 
         UPDATE schema_version SET version = 2;
+        """;
+
+    private static final String V3_MIGRATION_QUERY = """
+        ALTER TABLE messages RENAME COLUMN translations_json TO translations_json_old;
+        ALTER TABLE messages ADD COLUMN translations_json TEXT NOT NULL DEFAULT '{}';
+        UPDATE messages SET translations_json = translations_json_old;
+        ALTER TABLE messages DROP COLUMN translations_json_old;
+
+        UPDATE schema_version SET version = 3;
         """;
 
     public ChatMessageRepository() {
@@ -203,10 +212,17 @@ public class ChatMessageRepository {
                 );
             }
 
-            // Version 2 migration
+            // Version 2 migration - Add translations_json column
             if (dbVersion < 2) {
                 LOGGER.info("Migrating database to version 2");
                 executeMigrationQuery(conn, V2_MIGRATION_QUERY);
+            }
+
+            // Version 3 migration - add DEFAULT '{}' to translations_json for
+            // users that never ran schema v1
+            if (dbVersion < 3) {
+                LOGGER.info("Migrating database to version 3");
+                executeMigrationQuery(conn, V3_MIGRATION_QUERY);
             }
         }
     }
