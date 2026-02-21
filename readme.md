@@ -37,7 +37,7 @@ There are no plans to support other mod loaders.
 - [Mod Menu](https://modrinth.com/mod/modmenu) (optional, needed for configuration)
 
 ## Installation
-1. Install the mod [from Modrinth](https://modrinth.com/mod/web-chat) or grab the [latest release from GitHub](https://github.com/creesch/minecraft-web-chat/releases).
+1. Install the mod [from Modrinth](https://modrinth.com/mod/web-chat) or grab the [latest release from GitHub](https://github.com/Tildes-MC/minecraft-web-chat/releases).
 2. Start minecraft.
 3. Join a server.
 4. Go to `localhost:8080` on the same computer, or use your computer's local IP address (like `192.168.1.x:8080`) from other devices on your network.
