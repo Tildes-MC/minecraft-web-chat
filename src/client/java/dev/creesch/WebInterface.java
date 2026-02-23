@@ -92,50 +92,52 @@ public class WebInterface {
             }
 
             config.http.defaultContentType = "text/plain";
-            config.showJavalinBanner = false;
-        }).before((ctx) -> {
-            // Note, most things that are set here are overkill as users are _supposed_ to only uses this on their local machine through localhost.
-            // Or if we are being generous through a device on their own network.
-            // But, as we can't be sure that someone doesn't (accidentally) opens this up to the internet we take the better safe than sorry route.
-            String uri = ctx.path();
+            config.startup.showJavalinBanner = false;
 
-            // Allow access to the root directory ("/") but block subdirectories ending with "/"
-            if (!uri.equals("/") && uri.endsWith("/")) {
-                LOGGER.warn(
-                    "Unauthorized attempt to access subdirectory: " + uri
+            config.routes.before((ctx) -> {
+                // Note, most things that are set here are overkill as users are _supposed_ to only uses this on their local machine through localhost.
+                // Or if we are being generous through a device on their own network.
+                // But, as we can't be sure that someone doesn't (accidentally) opens this up to the internet we take the better safe than sorry route.
+                String uri = ctx.path();
+
+                // Allow access to the root directory ("/") but block subdirectories ending with "/"
+                if (!uri.equals("/") && uri.endsWith("/")) {
+                    LOGGER.warn(
+                        "Unauthorized attempt to access subdirectory: " + uri
+                    );
+                    ctx.status(401).result("Unauthorized access");
+                    return;
+                }
+
+                // Reject requests containing `..` (path traversal attack)
+                // Javelin also does this, this is just to be extra secure
+                if (uri.contains("..")) {
+                    LOGGER.warn("Invalid path detected: " + uri);
+                    ctx.status(400).result("Invalid path");
+                    return;
+                }
+
+                // Security headers
+                ctx.header(
+                    "Content-Security-Policy",
+                    "default-src 'self'; " +
+                        "font-src 'self'; " +
+                        "script-src 'self' 'unsafe-inline'; " +
+                        "style-src 'self' 'unsafe-inline'; " +
+                        "img-src 'self' data: https://textures.minecraft.net; " + // Need to fetch player textures.
+                        "connect-src 'self';"
                 );
-                ctx.status(401).result("Unauthorized access");
-                return;
-            }
+                ctx.header("X-Frame-Options", "DENY"); // Prevent clickjacking
+                ctx.header("X-Content-Type-Options", "nosniff"); // Prevent MIME type sniffin
 
-            // Reject requests containing `..` (path traversal attack)
-            // Javelin also does this, this is just to be extra secure
-            if (uri.contains("..")) {
-                LOGGER.warn("Invalid path detected: " + uri);
-                ctx.status(400).result("Invalid path");
-                return;
-            }
-
-            // Security headers
-            ctx.header(
-                "Content-Security-Policy",
-                "default-src 'self'; " +
-                    "font-src 'self'; " +
-                    "script-src 'self' 'unsafe-inline'; " +
-                    "style-src 'self' 'unsafe-inline'; " +
-                    "img-src 'self' data: https://textures.minecraft.net; " + // Need to fetch player textures.
-                    "connect-src 'self';"
-            );
-            ctx.header("X-Frame-Options", "DENY"); // Prevent clickjacking
-            ctx.header("X-Content-Type-Options", "nosniff"); // Prevent MIME type sniffin
-
-            // Disable caching
-            ctx.header(
-                "Cache-Control",
-                "no-store, no-cache, must-revalidate, max-age=0"
-            );
-            ctx.header("Pragma", "no-cache");
-            ctx.header("Expires", "0");
+                // Disable caching
+                ctx.header(
+                    "Cache-Control",
+                    "no-store, no-cache, must-revalidate, max-age=0"
+                );
+                ctx.header("Pragma", "no-cache");
+                ctx.header("Expires", "0");
+            });
         });
     }
 
@@ -156,7 +158,7 @@ public class WebInterface {
                 if (message.trim().isEmpty()) {
                     LOGGER.warn(
                         "Received an empty message from {}",
-                        ctx.session.getRemoteAddress()
+                        ctx.session.getRemoteSocketAddress()
                     );
                     return;
                 }
@@ -212,22 +214,22 @@ public class WebInterface {
     }
 
     private void setupWebSocket() {
-        server.ws("/chat", (ws) -> {
+        server.unsafe.routes.ws("/chat", (ws) -> {
             ws.onConnect((ctx) -> {
                 // For localhost connections pinging likely isn't needed.
                 // But if someone wants to use the mod on their phone or something it might be useful to include it.
                 ctx.enableAutomaticPings(15, TimeUnit.SECONDS);
                 LOGGER.info(
                     "New WebSocket connection from {}",
-                    ctx.session.getRemoteAddress() != null
-                        ? ctx.session.getRemoteAddress()
+                    ctx.session.getRemoteSocketAddress() != null
+                        ? ctx.session.getRemoteSocketAddress()
                         : "unknown remote address"
                 );
 
                 if (!addConnection(ctx)) {
                     LOGGER.warn(
                         "Failed to add connection: {}",
-                        ctx.session.getRemoteAddress()
+                        ctx.session.getRemoteSocketAddress()
                     );
                     return;
                 }
@@ -259,7 +261,7 @@ public class WebInterface {
                     LOGGER.info(jsonPlayerListMessage);
                     LOGGER.warn(
                         "Failed to send JOIN or PlayerList message to connection: {}",
-                        ctx.session.getRemoteAddress(),
+                        ctx.session.getRemoteSocketAddress(),
                         e
                     );
                 }
@@ -268,7 +270,7 @@ public class WebInterface {
             ws.onClose((ctx) -> {
                 LOGGER.info(
                     "WebSocket connection closed: {} with status {} and reason: {}",
-                    ctx.session.getRemoteAddress(),
+                    ctx.session.getRemoteSocketAddress(),
                     ctx.status(),
                     ctx.reason()
                 );
@@ -338,7 +340,7 @@ public class WebInterface {
             } catch (Exception e) {
                 LOGGER.warn(
                     "Failed to close WebSocket connection: {}",
-                    ctx.session.getRemoteAddress(),
+                    ctx.session.getRemoteSocketAddress(),
                     e
                 );
             }
@@ -437,7 +439,7 @@ public class WebInterface {
                 LOGGER.info(jsonMessage);
                 LOGGER.warn(
                     "Failed to send message to connection: {}",
-                    ctx.session.getRemoteAddress(),
+                    ctx.session.getRemoteSocketAddress(),
                     e
                 );
             }
