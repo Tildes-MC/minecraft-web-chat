@@ -5,29 +5,29 @@ import dev.isxander.yacl3.api.*;
 import dev.isxander.yacl3.api.controller.BooleanControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public class ModConfigScreen {
 
     public static Screen createScreen(Screen parent) {
         YetAnotherConfigLib.Builder builder =
             YetAnotherConfigLib.createBuilder().title(
-                Text.literal("Web Chat Configuration")
+                Component.literal("Web Chat Configuration")
             );
 
         builder.category(
             ConfigCategory.createBuilder()
-                .name(Text.literal("Message Settings"))
+                .name(Component.literal("Message Settings"))
                 .group(
                     OptionGroup.createBuilder()
-                        .name(Text.literal("Ping Settings"))
+                        .name(Component.literal("Ping Settings"))
                         .option(
                             Option.<Boolean>createBuilder()
-                                .name(Text.literal("Ping on Username"))
+                                .name(Component.literal("Ping on Username"))
                                 .description(
                                     OptionDescription.of(
-                                        Text.literal(
+                                        Component.literal(
                                             "Enable ping on username.\n" +
                                                 "This will ping the browser window any time a player's username appears in the chat " +
                                                 "(case insensitive)."
@@ -49,10 +49,10 @@ public class ModConfigScreen {
                 )
                 .group(
                     ListOption.<String>createBuilder()
-                        .name(Text.literal("Extra Ping Keywords"))
+                        .name(Component.literal("Extra Ping Keywords"))
                         .description(
                             OptionDescription.of(
-                                Text.literal(
+                                Component.literal(
                                     "Extra keywords to ping on.\n" +
                                         "This will ping the browser window any time one of these words appear in the chat " +
                                         "(case insensitive)."
@@ -74,16 +74,16 @@ public class ModConfigScreen {
 
         builder.category(
             ConfigCategory.createBuilder()
-                .name(Text.literal("Network Settings"))
+                .name(Component.literal("Network Settings"))
                 .group(
                     OptionGroup.createBuilder()
-                        .name(Text.literal("Port Settings"))
+                        .name(Component.literal("Port Settings"))
                         .option(
                             Option.<Integer>createBuilder()
-                                .name(Text.literal("HTTP Port"))
+                                .name(Component.literal("HTTP Port"))
                                 .description(
                                     OptionDescription.of(
-                                        Text.literal(
+                                        Component.literal(
                                             "Port number used to serve the web interface.\n" +
                                                 "Make sure that this port is available."
                                         )
@@ -101,7 +101,9 @@ public class ModConfigScreen {
                                     IntegerFieldControllerBuilder.create(opt)
                                         .range(1024, 65535)
                                         .formatValue((value) ->
-                                            Text.literal(String.valueOf(value))
+                                            Component.literal(
+                                                String.valueOf(value)
+                                            )
                                         )
                                 )
                                 .build()
@@ -114,16 +116,16 @@ public class ModConfigScreen {
         if (ModConfig.HANDLER.instance().developmentMode) {
             builder.category(
                 ConfigCategory.createBuilder()
-                    .name(Text.literal("Development Settings"))
+                    .name(Component.literal("Development Settings"))
                     .group(
                         OptionGroup.createBuilder()
-                            .name(Text.literal("Static Files Path"))
+                            .name(Component.literal("Static Files Path"))
                             .option(
                                 Option.<String>createBuilder()
-                                    .name(Text.literal("Path"))
+                                    .name(Component.literal("Path"))
                                     .description(
                                         OptionDescription.of(
-                                            Text.literal(
+                                            Component.literal(
                                                 "Path to the static files for the web interface.\n" +
                                                     "Leave blank to use files included in the mod jar."
                                             )
