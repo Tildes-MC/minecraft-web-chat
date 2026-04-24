@@ -21,8 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import lombok.Getter;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 
 public class WebInterface {
 
@@ -236,8 +236,8 @@ public class WebInterface {
 
                 // If minecraft is connected to a server the client needs to know.
                 // Client should never be null, but again better safe than sorry.
-                MinecraftClient client = MinecraftClient.getInstance();
-                if (client == null || client.world == null) {
+                Minecraft client = Minecraft.getInstance();
+                if (client == null || client.level == null) {
                     return;
                 }
                 // Got a world, use JOIN state to communicate this
@@ -382,7 +382,7 @@ public class WebInterface {
     }
 
     private void sendMinecraftMessage(String message) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         // Probably an edge case, if even possible but client can potentially be null
         if (client == null) {
             LOGGER.warn(
@@ -392,7 +392,7 @@ public class WebInterface {
         }
 
         client.execute(() -> {
-            ClientPlayerEntity player = client.player;
+            LocalPlayer player = client.player;
             if (player == null) {
                 LOGGER.warn("Player value is null. Cannot send message.");
                 return;
@@ -406,23 +406,21 @@ public class WebInterface {
                     maxLength + slash.length()
                 );
                 // Remove the leading slash and truncate to maxLength.
-                player.networkHandler.sendChatCommand(
+                player.connection.sendCommand(
                     message.substring(slash.length(), end)
                 );
                 return;
             }
 
             if (message.length() <= maxLength) {
-                player.networkHandler.sendChatMessage(message);
+                player.connection.sendChat(message);
                 return;
             }
 
             // Break long messages into smaller chunks
             for (int i = 0; i < message.length(); i += maxLength) {
                 int end = Math.min(i + maxLength, message.length());
-                player.networkHandler.sendChatMessage(
-                    message.substring(i, end)
-                );
+                player.connection.sendChat(message.substring(i, end));
             }
         });
     }

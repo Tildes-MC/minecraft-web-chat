@@ -7,13 +7,13 @@ import dev.isxander.yacl3.config.v2.api.serializer.GsonConfigSerializerBuilder;
 import java.util.Arrays;
 import java.util.List;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 
 public class ModConfig {
 
     public static ConfigClassHandler<ModConfig> HANDLER =
         ConfigClassHandler.createBuilder(ModConfig.class)
-            .id(Identifier.of("web-chat", "web-config"))
+            .id(Identifier.fromNamespaceAndPath("web-chat", "web-config"))
             .serializer((config) ->
                 GsonConfigSerializerBuilder.create(config)
                     .setPath(

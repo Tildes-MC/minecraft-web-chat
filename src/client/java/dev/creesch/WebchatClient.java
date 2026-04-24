@@ -13,10 +13,10 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
 
 public class WebchatClient implements ClientModInitializer {
 
@@ -52,7 +52,7 @@ public class WebchatClient implements ClientModInitializer {
         // Chat messages from users.
         ClientReceiveMessageEvents.CHAT.register(
             (message, signedMessage, sender, params, receptionTimestamp) -> {
-                MinecraftClient client = MinecraftClient.getInstance();
+                Minecraft client = Minecraft.getInstance();
                 String selfName =
                     client.player == null
                         ? ""
@@ -82,7 +82,7 @@ public class WebchatClient implements ClientModInitializer {
                     WebsocketMessageBuilder.createLiveChatMessage(
                         message,
                         false,
-                        MinecraftClient.getInstance()
+                        Minecraft.getInstance()
                     );
                 messageRepository.saveMessage(chatMessage);
                 webInterface.broadcastMessage(chatMessage);
@@ -158,7 +158,7 @@ public class WebchatClient implements ClientModInitializer {
         // works out to just send clients updates every couple of ticks.
         ClientTickEvents.END_CLIENT_TICK.register((client) -> {
             // Only used to send player list updates. So a client is needed and a world (on a server)
-            if (client == null || client.world == null) {
+            if (client == null || client.level == null) {
                 return;
             }
 
@@ -197,7 +197,7 @@ public class WebchatClient implements ClientModInitializer {
             INSTANCE.webInterface = new WebInterface(
                 INSTANCE.messageRepository
             );
-            INSTANCE.showWebAddress(MinecraftClient.getInstance());
+            INSTANCE.showWebAddress(Minecraft.getInstance());
         }
     }
 
@@ -205,17 +205,17 @@ public class WebchatClient implements ClientModInitializer {
         return MOD_VERSION;
     }
 
-    private void showWebAddress(MinecraftClient client) {
+    private void showWebAddress(Minecraft client) {
         if (client == null || client.player == null) {
             return;
         }
         String webchatPort = String.valueOf(
             ModConfig.HANDLER.instance().httpPortNumber
         );
-        Text message = Text.literal("Web chat: ").append(
-            Text.literal("http://localhost:" + webchatPort)
-                .formatted(Formatting.BLUE, Formatting.UNDERLINE)
-                .styled((style) ->
+        Component message = Component.literal("Web chat: ").append(
+            Component.literal("http://localhost:" + webchatPort)
+                .withStyle(ChatFormatting.BLUE, ChatFormatting.UNDERLINE)
+                .withStyle((style) ->
                     style.withClickEvent(
                         new ClickEvent.OpenUrl(
                             URI.create("http://localhost:" + webchatPort)
@@ -223,6 +223,6 @@ public class WebchatClient implements ClientModInitializer {
                     )
                 )
         );
-        client.player.sendMessage(message, false);
+        client.player.sendSystemMessage(message);
     }
 }

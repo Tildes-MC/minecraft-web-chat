@@ -11,27 +11,22 @@ on:
 
 jobs:
     build:
-        strategy:
-            matrix:
-                # Use these Java versions
-                java: [
-                        21, # Current Java LTS
-                    ]
         runs-on: ubuntu-24.04
+        env:
+            JAVA_VERSION: 25
         steps:
             - name: checkout repository
               uses: actions/checkout@v4
-            - name: setup jdk ${{ matrix.java }}
+            - name: setup jdk ${{ env.JAVA_VERSION }}
               uses: actions/setup-java@v4
               with:
-                  java-version: ${{ matrix.java }}
+                  java-version: ${{ env.JAVA_VERSION }}
                   distribution: 'microsoft'
             - name: setup gradle
               uses: gradle/actions/setup-gradle@v4
             - name: build
               run: ./gradlew build
             - name: capture build artifacts
-              if: ${{ matrix.java == '21' }} # Only upload artifacts built from latest java
               uses: actions/upload-artifact@v4
               with:
                   name: Artifacts

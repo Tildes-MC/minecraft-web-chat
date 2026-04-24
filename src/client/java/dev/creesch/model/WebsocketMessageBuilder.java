@@ -17,11 +17,11 @@ import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
 import net.minecraft.SharedConstants;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextCodecs;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentSerialization;
 
 public class WebsocketMessageBuilder {
 
@@ -36,11 +36,11 @@ public class WebsocketMessageBuilder {
      * @param client The Minecraft client instance
      */
     public static WebsocketJsonMessage createLiveChatMessage(
-        Text message,
+        Component message,
         boolean fromSelf,
-        MinecraftClient client
+        Minecraft client
     ) {
-        if (client.world == null) {
+        if (client.level == null) {
             throw new MessageBuildException(
                 "Cannot create chat message: client world is null"
             );
@@ -55,7 +55,7 @@ public class WebsocketMessageBuilder {
             translations = ClientTranslationUtils.extractTranslations(message);
             minecraftChatJsonObject = toJsonObject(
                 message,
-                client.world.getRegistryManager()
+                client.level.registryAccess()
             );
         } catch (JsonParseException exception) {
             LOGGER.warn(
@@ -76,7 +76,7 @@ public class WebsocketMessageBuilder {
         long timestamp = Instant.now(Clock.systemUTC()).toEpochMilli();
         WebsocketJsonMessage.ChatServerInfo serverInfo =
             MinecraftServerIdentifier.getCurrentServerInfo();
-        String minecraftVersion = SharedConstants.getGameVersion().name();
+        String minecraftVersion = SharedConstants.getCurrentVersion().name();
         // UUID used to prevent duplicates
         String messageUUID = UUID.nameUUIDFromBytes(
             (timestamp + gson.toJson(minecraftChatJsonObject)).getBytes()
@@ -106,11 +106,11 @@ public class WebsocketMessageBuilder {
      * @return JsonObject representation of the message
      */
     private static JsonObject toJsonObject(
-        Text message,
-        RegistryWrapper.WrapperLookup registries
+        Component message,
+        HolderLookup.Provider registries
     ) {
-        JsonElement jsonElement = TextCodecs.CODEC.encodeStart(
-            registries.getOps(JsonOps.INSTANCE),
+        JsonElement jsonElement = ComponentSerialization.CODEC.encodeStart(
+            registries.createSerializationContext(JsonOps.INSTANCE),
             message
         ).getOrThrow(JsonParseException::new);
 
@@ -123,7 +123,9 @@ public class WebsocketMessageBuilder {
             return jsonObject;
         } else {
             // For anything else assume it isn't Minecraft chat format that can be parsed down the line.
-            throw new JsonParseException("Cannot create JSON object from Text");
+            throw new JsonParseException(
+                "Cannot create JSON object from Component"
+            );
         }
     }
 
@@ -134,7 +136,7 @@ public class WebsocketMessageBuilder {
      * @param client The Minecraft client instance
      * @return True if the message is a ping, false otherwise
      */
-    private static boolean isPing(Text message, MinecraftClient client) {
+    private static boolean isPing(Component message, Minecraft client) {
         String messageString = message.getString();
         ModConfig config = ModConfig.HANDLER.instance();
 
@@ -237,7 +239,7 @@ public class WebsocketMessageBuilder {
         long timestamp = Instant.now(Clock.systemUTC()).toEpochMilli();
         WebsocketJsonMessage.ChatServerInfo serverInfo =
             MinecraftServerIdentifier.getCurrentServerInfo();
-        String minecraftVersion = SharedConstants.getGameVersion().id();
+        String minecraftVersion = SharedConstants.getCurrentVersion().id();
 
         return WebsocketJsonMessage.createServerConnectionStateMessage(
             timestamp,
@@ -269,7 +271,7 @@ public class WebsocketMessageBuilder {
         long timestamp = Instant.now(Clock.systemUTC()).toEpochMilli();
         WebsocketJsonMessage.ChatServerInfo serverInfo =
             MinecraftServerIdentifier.getCurrentServerInfo();
-        String minecraftVersion = SharedConstants.getGameVersion().id();
+        String minecraftVersion = SharedConstants.getCurrentVersion().id();
 
         return WebsocketJsonMessage.createHistoryMetaDataMessage(
             timestamp,
@@ -343,10 +345,8 @@ public class WebsocketMessageBuilder {
      *
      * @param client MinecraftClient
      */
-    public static WebsocketJsonMessage createPlayerList(
-        MinecraftClient client
-    ) {
-        ClientPlayNetworkHandler networkHandler = client.getNetworkHandler();
+    public static WebsocketJsonMessage createPlayerList(Minecraft client) {
+        ClientPacketListener networkHandler = client.getConnection();
 
         List<PlayerListInfoEntry> playerList = new ArrayList<>();
 
@@ -354,21 +354,21 @@ public class WebsocketMessageBuilder {
             return null;
         }
         networkHandler
-            .getPlayerList()
+            .getOnlinePlayers()
             .forEach((player) -> {
                 GameProfile profile = player.getProfile(); // Contains UUID and name
                 String playerId = profile.id().toString();
                 String playerName = profile.name();
 
-                Text playerDisplayName =
-                    player.getDisplayName() != null
-                        ? player.getDisplayName()
-                        : Text.literal(playerName);
+                Component playerDisplayName =
+                    player.getTabListDisplayName() != null
+                        ? player.getTabListDisplayName()
+                        : Component.literal(playerName);
                 JsonObject minecraftJsonObjectDisplayName;
                 try {
                     minecraftJsonObjectDisplayName = toJsonObject(
                         playerDisplayName,
-                        client.world.getRegistryManager()
+                        client.level.registryAccess()
                     );
                 } catch (JsonParseException exception) {
                     LOGGER.warn(
@@ -407,7 +407,7 @@ public class WebsocketMessageBuilder {
         long timestamp = Instant.now(Clock.systemUTC()).toEpochMilli();
         WebsocketJsonMessage.ChatServerInfo serverInfo =
             MinecraftServerIdentifier.getCurrentServerInfo();
-        String minecraftVersion = SharedConstants.getGameVersion().id();
+        String minecraftVersion = SharedConstants.getCurrentVersion().id();
 
         return WebsocketJsonMessage.createServerPlayerListMessage(
             timestamp,
