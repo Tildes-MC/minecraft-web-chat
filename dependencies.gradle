@@ -7,7 +7,7 @@ ext {
     loom_version = '1.16-SNAPSHOT'
 
     // Mod Properties
-    mod_version = '1.6.0'
+    mod_version = '1.7.0'
     maven_group = 'dev.creesch'
     archives_base_name = 'web-chat'
 
