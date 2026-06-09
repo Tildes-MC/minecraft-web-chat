@@ -10,6 +10,7 @@ import dev.creesch.storage.ChatMessageRepository;
 import dev.creesch.util.NamedLogger;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
+import io.javalin.websocket.WsCloseStatus;
 import io.javalin.websocket.WsContext;
 import io.javalin.websocket.WsMessageContext;
 import java.util.Collections;
@@ -122,8 +123,8 @@ public class WebInterface {
                     "Content-Security-Policy",
                     "default-src 'self'; " +
                         "font-src 'self'; " +
-                        "script-src 'self' 'unsafe-inline'; " +
-                        "style-src 'self' 'unsafe-inline'; " +
+                        "script-src 'self'; " +
+                        "style-src 'self'; " +
                         "img-src 'self' data: https://textures.minecraft.net; " + // Need to fetch player textures.
                         "connect-src 'self';"
                 );
@@ -216,6 +217,19 @@ public class WebInterface {
     private void setupWebSocket() {
         server.unsafe.routes.ws("/chat", (ws) -> {
             ws.onConnect((ctx) -> {
+                if (!isAllowedOrigin(ctx)) {
+                    LOGGER.warn(
+                        "Rejected WebSocket connection from {} with disallowed origin {}",
+                        ctx.session.getRemoteSocketAddress(),
+                        ctx.header("Origin")
+                    );
+                    ctx.closeSession(
+                        WsCloseStatus.POLICY_VIOLATION,
+                        "Origin not allowed"
+                    );
+                    return;
+                }
+
                 // For localhost connections pinging likely isn't needed.
                 // But if someone wants to use the mod on their phone or something it might be useful to include it.
                 ctx.enableAutomaticPings(15, TimeUnit.SECONDS);
@@ -284,6 +298,35 @@ public class WebInterface {
                 removeConnection(ctx);
             });
         });
+    }
+
+    /**
+     * Checks the Origin header of a WebSocket upgrade request.
+     *
+     * Browsers do not apply any cross-origin policy to WebSockets, so without this check
+     * any website open in the user's browser could connect and chat as the player
+     * (cross-site WebSocket hijacking). The chat page is served by this same server,
+     * so a legitimate browser origin always matches the Host header of the upgrade request.
+     * Requests without an Origin header (non-browser clients) are allowed.
+     *
+     * @param ctx The WebSocket context of the new connection.
+     * @return True if the connection is allowed.
+     */
+    private static boolean isAllowedOrigin(WsContext ctx) {
+        String origin = ctx.header("Origin");
+        if (origin == null || origin.isEmpty()) {
+            return true;
+        }
+
+        String host = ctx.header("Host");
+        if (host == null || host.isEmpty()) {
+            return false;
+        }
+
+        return (
+            origin.equalsIgnoreCase("http://" + host) ||
+            origin.equalsIgnoreCase("https://" + host)
+        );
     }
 
     /**

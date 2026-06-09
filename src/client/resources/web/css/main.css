@@ -281,6 +281,23 @@ body {
     animation-delay: 0.1s;
 }
 
+/* Varied widths to make the loading placeholders look like real messages.
+   Kept here instead of inline style attributes so the CSP can stay free of 'unsafe-inline'. */
+.message-placeholder:nth-child(1) .placeholder-content,
+.message-placeholder:nth-child(3) .placeholder-content,
+.message-placeholder:nth-child(6) .placeholder-content {
+    width: 15%;
+}
+
+.message-placeholder:nth-child(2) .placeholder-content,
+.message-placeholder:nth-child(4) .placeholder-content {
+    width: 25%;
+}
+
+.message-placeholder:nth-child(5) .placeholder-content {
+    width: 30%;
+}
+
 @keyframes placeholder-pulse {
     0%,
     100% {
