@@ -17,6 +17,28 @@ public final class LocalNetworkAddressResolver {
     private LocalNetworkAddressResolver() {}
 
     /**
+     * How preferable an address is as the LAN host other devices should use to
+     * reach this machine, from least to most preferred. The constants are
+     * declared in ascending order of preference so that the natural ordering
+     * ({@link Enum#compareTo}) can be used to pick the best candidate.
+     * <p>
+     * IPv4 site-local addresses are preferred over IPv6 because they are the
+     * most broadly reachable. Within each family a physical Ethernet/Wi-Fi
+     * interface beats a bridge/VM one, and IPv6 unique-local addresses
+     * (fc00::/7) are preferred over globally routable ones.
+     */
+    private enum AddressPreference {
+        /** Not usable as a LAN host (e.g. link-local IPv6, non-site-local IPv4). */
+        UNUSABLE,
+        IPV6_GLOBAL_VIRTUAL,
+        IPV6_GLOBAL_PHYSICAL,
+        IPV6_UNIQUE_LOCAL_VIRTUAL,
+        IPV6_UNIQUE_LOCAL_PHYSICAL,
+        IPV4_SITE_LOCAL_VIRTUAL,
+        IPV4_SITE_LOCAL_PHYSICAL,
+    }
+
+    /**
      * Resolves the address this machine is reachable at on the local network.
      * <p>
      * The web interface is meant to be opened from the local IP rather than
@@ -32,7 +54,8 @@ public final class LocalNetworkAddressResolver {
      */
     public static String resolveLocalNetworkHost() {
         String bestHost = null;
-        int bestScore = 0;
+        AddressPreference bestPreference = AddressPreference.UNUSABLE;
+
         try {
             for (NetworkInterface networkInterface : Collections.list(
                 NetworkInterface.getNetworkInterfaces()
@@ -65,9 +88,12 @@ public final class LocalNetworkAddressResolver {
                 )) {
                     // A strict comparison keeps the first address seen on ties,
                     // matching the previous "first match wins" fallback.
-                    int score = scoreLocalAddress(address, physical);
-                    if (score > bestScore) {
-                        bestScore = score;
+                    AddressPreference preference = ratePreference(
+                        address,
+                        physical
+                    );
+                    if (preference.compareTo(bestPreference) > 0) {
+                        bestPreference = preference;
                         bestHost = formatHostForUrl(address);
                     }
                 }
@@ -79,7 +105,7 @@ public final class LocalNetworkAddressResolver {
             );
         }
 
-        if (bestHost == null) {
+        if (bestPreference == AddressPreference.UNUSABLE) {
             return "localhost";
         }
 
@@ -87,30 +113,27 @@ public final class LocalNetworkAddressResolver {
     }
 
     /**
-     * Scores how suitable an address is as the LAN host other devices should
-     * use to reach this machine. Higher is better; {@code 0} means unusable.
-     * <p>
-     * IPv4 site-local addresses are preferred over IPv6 because they are the
-     * most broadly reachable. Within each family a physical Ethernet/Wi-Fi
-     * interface beats a bridge/VM one, and IPv6 unique-local addresses
-     * (fc00::/7) are preferred over globally routable ones. Link-local IPv6
-     * (fe80::/10) is rejected because it requires a per-host scope id and so is
-     * not portable in a URL.
+     * Rates how suitable an address is as the LAN host other devices should
+     * use to reach this machine. Link-local IPv6 (fe80::/10) is rejected
+     * because it requires a per-host scope id and so is not portable in a URL.
      *
      * @param address The candidate address.
      * @param physical Whether it lives on a likely physical LAN interface.
-     * @return A score where higher is more preferred, or {@code 0} if unusable.
+     * @return The preference for this address, or
+     *     {@link AddressPreference#UNUSABLE} if it cannot be used.
      */
-    private static int scoreLocalAddress(
+    private static AddressPreference ratePreference(
         InetAddress address,
         boolean physical
     ) {
         if (address instanceof Inet4Address) {
             if (!address.isSiteLocalAddress()) {
-                return 0;
+                return AddressPreference.UNUSABLE;
             }
 
-            return physical ? 100 : 90;
+            return physical
+                ? AddressPreference.IPV4_SITE_LOCAL_PHYSICAL
+                : AddressPreference.IPV4_SITE_LOCAL_VIRTUAL;
         }
 
         if (address instanceof Inet6Address) {
@@ -120,20 +143,24 @@ public final class LocalNetworkAddressResolver {
                 address.isMulticastAddress() ||
                 address.isAnyLocalAddress()
             ) {
-                return 0;
+                return AddressPreference.UNUSABLE;
             }
 
             // Unique-local addresses (fc00::/7) are the IPv6 equivalent of
             // private IPv4 ranges; prefer them over globally routable ones.
             boolean uniqueLocal = (address.getAddress()[0] & 0xfe) == 0xfc;
             if (uniqueLocal) {
-                return physical ? 80 : 70;
+                return physical
+                    ? AddressPreference.IPV6_UNIQUE_LOCAL_PHYSICAL
+                    : AddressPreference.IPV6_UNIQUE_LOCAL_VIRTUAL;
             }
 
-            return physical ? 60 : 50;
+            return physical
+                ? AddressPreference.IPV6_GLOBAL_PHYSICAL
+                : AddressPreference.IPV6_GLOBAL_VIRTUAL;
         }
 
-        return 0;
+        return AddressPreference.UNUSABLE;
     }
 
     /**
