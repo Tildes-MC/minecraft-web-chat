@@ -104,39 +104,70 @@ sidebarToggleElement.addEventListener('click', () => {
     toggleSidebar();
 });
 
-qrButtonElement.addEventListener('click', () => {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'modal-qr';
-
-    const host = location.hostname;
-    const isLoopback =
-        host === 'localhost' ||
-        host === '::1' ||
-        host === '[::1]' ||
-        host.startsWith('127.');
-
-    if (isLoopback) {
-        const message = document.createElement('p');
-        message.className = 'modal-qr-caption';
-        message.append(
-            'This page is open on localhost.',
-            document.createElement('br'),
-            'Reopen it using the network address shown in',
-            document.createElement('br'),
-            'Minecraft chat to show a QR code here.',
+/**
+ * Whether a URL points at this machine's loopback interface, in which case it
+ * is useless as something to scan from another device.
+ *
+ * @param {string} url
+ * @returns {boolean}
+ */
+function isLoopbackUrl(url) {
+    try {
+        const host = new URL(url).hostname;
+        return (
+            host === 'localhost' ||
+            host === '::1' ||
+            host === '[::1]' ||
+            host.startsWith('127.')
         );
-        wrapper.append(message);
-    } else {
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * The page is always served over localhost, so to point a phone at this
+ * machine we ask the backend for the LAN address. When the chat isn't open to
+ * the local network there is nothing to scan, so the QR button is hidden.
+ */
+async function setupQrButton() {
+    let networkInfo = null;
+    try {
+        const response = await fetch('/api/network-info');
+        if (response.ok) {
+            networkInfo = await response.json();
+        }
+    } catch {
+        // Endpoint unreachable, treat the LAN address as unavailable.
+    }
+
+    if (
+        !networkInfo ||
+        !networkInfo.lanEnabled ||
+        !networkInfo.url ||
+        isLoopbackUrl(networkInfo.url)
+    ) {
+        // No usable LAN address (e.g. the resolver fell back to localhost), so
+        // there is nothing a phone could scan and reach.
+        qrButtonElement.style.display = 'none';
+        return;
+    }
+
+    const lanUrl = networkInfo.url;
+    qrButtonElement.addEventListener('click', () => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'modal-qr';
+
         const code = document.createElement('div');
         code.className = 'modal-qr-code';
         code.innerHTML = new QRCode({
-            content: location.origin,
+            content: lanUrl,
             width: 256,
             height: 256,
             padding: 1,
-            color: '#130512',
-            background: '#ffffff',
-            ecl: 'M',
+            color: 'black',
+            background: 'white',
+            ecl: 'L',
         }).svg();
 
         const caption = document.createElement('p');
@@ -148,10 +179,11 @@ qrButtonElement.addEventListener('click', () => {
         );
 
         wrapper.append(code, caption);
-    }
+        modalManager.open(wrapper);
+    });
+}
 
-    modalManager.open(wrapper);
-});
+setupQrButton();
 
 clearRecipientElement.addEventListener('click', () => {
     directMessageManager.clearPlayer();

@@ -4,7 +4,6 @@ import dev.creesch.config.ModConfig;
 import dev.creesch.model.WebsocketJsonMessage;
 import dev.creesch.model.WebsocketMessageBuilder;
 import dev.creesch.storage.ChatMessageRepository;
-import dev.creesch.util.LocalNetworkAddressResolver;
 import dev.creesch.util.NamedLogger;
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -193,7 +192,11 @@ public class WebchatClient implements ClientModInitializer {
             INSTANCE.webInterface.getCurrentPath() !=
             ModConfig.HANDLER.instance().staticFilesPath;
 
-        if (portChanged || pathChanged) {
+        boolean lanChanged =
+            INSTANCE.webInterface.isLanEnabled() !=
+            ModConfig.HANDLER.instance().openChatToLan;
+
+        if (portChanged || pathChanged || lanChanged) {
             INSTANCE.webInterface.shutdown();
             INSTANCE.webInterface = new WebInterface(
                 INSTANCE.messageRepository
@@ -214,9 +217,11 @@ public class WebchatClient implements ClientModInitializer {
             ModConfig.HANDLER.instance().httpPortNumber
         );
 
-        String webchatHost =
-            LocalNetworkAddressResolver.resolveLocalNetworkHost();
-        String webchatUrl = "http://" + webchatHost + ":" + webchatPort;
+        // Always show the localhost URL. Other devices on the network reach the
+        // chat through the LAN address exposed by the /api/network-info endpoint
+        // (used by the in-page QR code), which is only available when the chat
+        // is opened to the LAN in the mod settings.
+        String webchatUrl = "http://localhost:" + webchatPort;
         Component message = Component.literal("Web chat: ").append(
             Component.literal(webchatUrl)
                 .withStyle(ChatFormatting.BLUE, ChatFormatting.UNDERLINE)

@@ -110,6 +110,34 @@ public class ModConfigScreen {
                         )
                         .build()
                 )
+                .group(
+                    OptionGroup.createBuilder()
+                        .name(Component.literal("Local Network Access"))
+                        .option(
+                            Option.<Boolean>createBuilder()
+                                .name(Component.literal("Open Chat to LAN"))
+                                .description(
+                                    OptionDescription.of(
+                                        Component.literal(
+                                            "Open the web chat to your local network so other devices " +
+                                                "(like your phone) can connect.\n" +
+                                                "When disabled the chat is only reachable from this computer through localhost."
+                                        )
+                                    )
+                                )
+                                .binding(
+                                    ModConfig.HANDLER.defaults().openChatToLan,
+                                    () ->
+                                        ModConfig.HANDLER.instance().openChatToLan,
+                                    (val) ->
+                                        ModConfig.HANDLER.instance().openChatToLan =
+                                            val
+                                )
+                                .controller(BooleanControllerBuilder::create)
+                                .build()
+                        )
+                        .build()
+                )
                 .build()
         );
 
