@@ -43,6 +43,9 @@ let reconnectAttempts = 0;
 
 // Message History Management
 const messageHistoryLimit = 50;
+// Maximum number of messages kept in the DOM. Older messages are pruned and can be
+// loaded again by scrolling up, like any other history.
+const maxDisplayedMessages = 500;
 let isLoadingHistory = false;
 
 // Used to keep track of messages already shown. To prevent possible duplication on server join.
@@ -242,6 +245,9 @@ function handleChatMessage(message) {
     requestAnimationFrame(() => {
         const messageElement = document.createElement('article');
         messageElement.classList.add('message');
+        // Used by pruneOldMessages to keep the dedupe set and history cursor in sync with the DOM.
+        messageElement.dataset['uuid'] = message.payload.uuid;
+        messageElement.dataset['timestamp'] = message.timestamp.toString();
 
         if (message.payload.isPing) {
             messageElement.classList.add('ping');
@@ -316,7 +322,60 @@ function handleChatMessage(message) {
         if (scrolledFromTop <= 1 && scrolledFromTop >= -35) {
             messagesElement.scrollTop = 0;
         }
+
+        pruneOldMessages();
     });
+}
+
+/**
+ * Remove the oldest messages from the DOM once the cap is exceeded, so the page doesn't
+ * grow without bound during long sessions on busy servers.
+ *
+ * Skipped while the user is scrolled up, so messages don't vanish while they might be reading them.
+ * Pruned messages stay available through normal history loading: their UUIDs are removed from the
+ * dedupe set and the history cursor is moved to the oldest message still in the DOM.
+ */
+function pruneOldMessages() {
+    // Note: scrollTop is negative when scrolled up due to the flex column-reverse layout.
+    if (messagesElement.scrollTop < -35) {
+        return;
+    }
+
+    const messageElements = /** @type {NodeListOf<HTMLElement>} */ (
+        messagesElement.querySelectorAll('.message')
+    );
+    if (messageElements.length <= maxDisplayedMessages) {
+        return;
+    }
+
+    // Messages are ordered newest to oldest in the DOM (column-reverse layout),
+    // so everything past the cap is the oldest content.
+    const oldestRemainingElement = messageElements[maxDisplayedMessages - 1];
+    if (!oldestRemainingElement) {
+        return;
+    }
+
+    for (let i = maxDisplayedMessages; i < messageElements.length; i++) {
+        const element = messageElements[i];
+        if (!element) {
+            continue;
+        }
+
+        const uuid = element.dataset['uuid'];
+        if (uuid) {
+            displayedMessageIds.delete(uuid);
+        }
+        element.remove();
+    }
+
+    // Pruned messages are part of history again. Move the cursor to the oldest message
+    // still shown so scrolling up loads them like any other history.
+    const oldestRemainingTimestamp =
+        oldestRemainingElement.dataset['timestamp'];
+    if (oldestRemainingTimestamp) {
+        historyLoaderElement.dataset['oldestMessageTimestamp'] =
+            oldestRemainingTimestamp;
+    }
 }
 
 function clearMessageHistory() {
