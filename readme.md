@@ -52,7 +52,8 @@ There are no plans to support other mod loaders.
 
 ### Network settings
 
-- `HTTP Port` - Port number used to serve the web interface. `8080` by default. 
+- `HTTP Port` - Port number used to serve the web interface. `8080` by default.
+- `Open Chat to LAN` - Open the web chat to your local network so other devices (like your phone) can connect. Enabled by default. When disabled, the chat binds to `localhost` only and is reachable from this computer alone. While enabled, a QR code button is shown in the player list that lets you quickly open the chat on your phone by scanning your computer's local network address.
 
 
 # Security & Privacy
