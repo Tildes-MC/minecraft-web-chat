@@ -176,8 +176,7 @@ body {
 /* Base layer */
 .player-head {
     position: absolute;
-    transform: scale(var(--scale));
-    transform-origin: top left;
+    width: calc(64px * var(--scale));
     image-rendering: pixelated;
     top: calc(-8px * var(--scale));
     left: calc(-8px * var(--scale));
@@ -186,8 +185,7 @@ body {
 /* Hat layer */
 .player-head-overlay {
     position: absolute;
-    transform: scale(var(--scale));
-    transform-origin: top left;
+    width: calc(64px * var(--scale));
     image-rendering: pixelated;
     top: calc(-8px * var(--scale));
     left: calc(-40px * var(--scale));
