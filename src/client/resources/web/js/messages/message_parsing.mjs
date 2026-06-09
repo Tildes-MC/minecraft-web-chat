@@ -3,6 +3,7 @@
 
 import { playerList } from '../managers/player_list.mjs';
 import { directMessageManager } from '../managers/direct_message.mjs';
+import { modalManager } from '../managers/modal_manager.mjs';
 import { querySelectorWithAssertion } from '../utils.mjs';
 
 // Minecraft JSON message parsing to HTML.
@@ -1399,72 +1400,46 @@ function handleOpenUrl(event, url) {
     }
 
     event.preventDefault();
+    modalManager.open(buildOpenUrlModalContents(url));
+}
 
-    const modalUrlElement = /** @type {HTMLParagraphElement} */ (
-        querySelectorWithAssertion('#modal-content .modal-url')
-    );
-    const modalContainer = /** @type {HTMLDivElement} */ (
-        querySelectorWithAssertion('#modal-container')
-    );
-    const modalContent = /** @type {HTMLDivElement} */ (
-        querySelectorWithAssertion('#modal-content')
-    );
-    const modalCancelButton = /** @type {HTMLButtonElement} */ (
-        querySelectorWithAssertion('#modal-cancel')
-    );
-    const modalCopyButton = /** @type {HTMLButtonElement} */ (
-        querySelectorWithAssertion('#modal-copy')
-    );
-    const modalConfirmButton = /** @type {HTMLButtonElement} */ (
-        querySelectorWithAssertion('#modal-confirm')
-    );
+/**
+ * Builds the confirmation shown before opening a (potentially untrusted) link.
+ * @param {string} url - The URL to open.
+ * @returns {HTMLDivElement}
+ */
+function buildOpenUrlModalContents(url) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'modal-open-url';
 
-    modalUrlElement.textContent = url;
+    const intro = document.createElement('p');
+    intro.textContent = 'Are you sure you want to open the following website?';
 
-    const closeModal = () => {
-        modalContainer.style.display = 'none';
-        modalUrlElement.textContent = '';
-        modalConfirmButton.removeEventListener('click', confirmHandler);
-        modalCancelButton.removeEventListener('click', cancelHandler);
-        modalCopyButton.removeEventListener('click', copyHandler);
-        modalContainer.removeEventListener('click', closeModal);
-        document.removeEventListener('keydown', escapeHandler);
-        modalContent.removeEventListener('click', contentClickHandler);
-    };
+    const urlParagraph = document.createElement('p');
+    urlParagraph.className = 'modal-url';
+    urlParagraph.textContent = url;
 
-    const escapeHandler = (/** @type {KeyboardEvent} */ event) => {
-        if (event.key === 'Escape') {
-            closeModal();
-        }
-    };
+    const warning = document.createElement('p');
+    warning.textContent = "Never open links from people you don't trust!";
 
-    const contentClickHandler = (/** @type {MouseEvent} */ event) => {
-        event.stopPropagation();
-    };
+    const buttons = document.createElement('div');
+    buttons.className = 'modal-buttons';
 
-    const cancelHandler = () => {
-        modalUrlElement.textContent = '';
-        closeModal();
-    };
-
-    const copyHandler = () => {
-        navigator.clipboard.writeText(url);
-        closeModal();
-    };
-
-    const confirmHandler = () => {
+    const confirmButton = document.createElement('button');
+    confirmButton.textContent = 'Yes';
+    confirmButton.addEventListener('click', () => {
         window.open(url, '_blank', 'noopener,noreferrer');
-        closeModal();
-    };
+        modalManager.close();
+    });
 
-    modalConfirmButton.addEventListener('click', confirmHandler);
-    modalCancelButton.addEventListener('click', cancelHandler);
-    modalCopyButton.addEventListener('click', copyHandler);
-    modalContainer.addEventListener('click', closeModal);
-    modalContainer.style.display = 'block';
-    document.addEventListener('keydown', escapeHandler);
-    modalConfirmButton.focus();
-    modalContent.addEventListener('click', contentClickHandler);
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'No';
+    cancelButton.addEventListener('click', () => modalManager.close());
+
+    buttons.append(confirmButton, cancelButton);
+
+    wrapper.append(intro, urlParagraph, warning, buttons);
+    return wrapper;
 }
 
 /**

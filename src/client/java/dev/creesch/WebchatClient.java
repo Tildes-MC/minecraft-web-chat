@@ -4,6 +4,7 @@ import dev.creesch.config.ModConfig;
 import dev.creesch.model.WebsocketJsonMessage;
 import dev.creesch.model.WebsocketMessageBuilder;
 import dev.creesch.storage.ChatMessageRepository;
+import dev.creesch.util.LocalNetworkAddressResolver;
 import dev.creesch.util.NamedLogger;
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -212,17 +213,20 @@ public class WebchatClient implements ClientModInitializer {
         String webchatPort = String.valueOf(
             ModConfig.HANDLER.instance().httpPortNumber
         );
+
+        String webchatHost =
+            LocalNetworkAddressResolver.resolveLocalNetworkHost();
+        String webchatUrl = "http://" + webchatHost + ":" + webchatPort;
         Component message = Component.literal("Web chat: ").append(
-            Component.literal("http://localhost:" + webchatPort)
+            Component.literal(webchatUrl)
                 .withStyle(ChatFormatting.BLUE, ChatFormatting.UNDERLINE)
                 .withStyle((style) ->
                     style.withClickEvent(
-                        new ClickEvent.OpenUrl(
-                            URI.create("http://localhost:" + webchatPort)
-                        )
+                        new ClickEvent.OpenUrl(URI.create(webchatUrl))
                     )
                 )
         );
+
         client.player.sendSystemMessage(message);
     }
 }

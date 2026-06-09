@@ -51,36 +51,59 @@ body {
     transform: translate(-50%, -50%);
     min-width: 300px;
     max-width: 800px;
-    min-height: 150px;
+    min-height: 50px;
     background-color: #130512;
     border: 2px solid #25035c;
     outline: 2px solid #130512;
     border-radius: 0.5rem;
-    padding: 1.5rem;
+    padding: 2.5rem;
 }
 
-#modal-text {
+#modal-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    margin: 0;
+    padding: 0.25rem;
+    border: none;
+    background: none;
+    border-radius: 0.3rem;
+    cursor: pointer;
+}
+
+#modal-close:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+#modal-close img {
+    width: 1.25rem;
+    height: 1.25rem;
 }
 
 #modal-content p {
     margin: 0;
 }
 
-#modal-content .modal-buttons {
+/* Link confirmation modal contents */
+.modal-open-url {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.modal-buttons {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
 }
 
-#modal-content .modal-url {
+.modal-url {
     color: pink;
-    margin: 0.5rem 0;
+    word-break: break-all;
 }
 
-#modal-content button {
+.modal-buttons button {
     margin: 0;
     padding: 0.5rem 1rem;
     border: none;
@@ -90,8 +113,33 @@ body {
     cursor: pointer;
 }
 
-#modal-content button:hover {
+.modal-buttons button:hover {
     background-color: #45a049;
+}
+
+/* QR code modal contents */
+.modal-qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.modal-qr-code {
+    display: flex;
+    padding: 0.75rem;
+    background-color: #ffffff;
+    border-radius: 0.3rem;
+}
+
+.modal-qr-code svg {
+    display: block;
+    width: 16rem;
+    height: 16rem;
+}
+
+.modal-qr-caption {
+    text-align: center;
 }
 
 #container {
@@ -128,6 +176,28 @@ body {
     padding: 1rem 1.5rem;
     font-size: 1.1rem;
     background-color: rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+#qr-button {
+    margin: 0 -0.25rem 0 auto;
+    padding: 0.25rem;
+    display: flex;
+    border: none;
+    background: none;
+    border-radius: 0.3rem;
+    cursor: pointer;
+}
+
+#qr-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+#qr-button img {
+    width: 1.25rem;
+    height: 1.25rem;
 }
 
 #player-list {
@@ -523,6 +593,10 @@ body {
     #player-list-container.mobile-menu-open h2 {
         border-radius: 0.3rem;
         flex-shrink: 0;
+    }
+
+    #qr-button {
+        display: none;
     }
 
     #player-list {

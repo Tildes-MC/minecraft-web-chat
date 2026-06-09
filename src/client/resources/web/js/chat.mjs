@@ -14,6 +14,8 @@ import { directMessageManager } from './managers/direct_message.mjs';
 import { parseModServerMessage } from './messages/message_types.mjs';
 import { faviconManager } from './managers/favicon_manager.mjs';
 import { tabListManager } from './managers/tab_list_manager.mjs';
+import { modalManager } from './managers/modal_manager.mjs';
+import QRCode from './vendor/qrcode-svg.mjs';
 
 /**
  * Import all types we might need
@@ -61,6 +63,9 @@ const statusElement = /** @type {HTMLDivElement} */ (
 const sidebarToggleElement = /** @type {HTMLImageElement} */ (
     querySelectorWithAssertion('#sidebar-toggle')
 );
+const qrButtonElement = /** @type {HTMLButtonElement} */ (
+    querySelectorWithAssertion('#qr-button')
+);
 
 const messagesElement = /** @type {HTMLElement} */ (
     querySelectorWithAssertion('#messages')
@@ -97,6 +102,55 @@ const messageSendButtonElement = /** @type {HTMLImageElement} */ (
 
 sidebarToggleElement.addEventListener('click', () => {
     toggleSidebar();
+});
+
+qrButtonElement.addEventListener('click', () => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'modal-qr';
+
+    const host = location.hostname;
+    const isLoopback =
+        host === 'localhost' ||
+        host === '::1' ||
+        host === '[::1]' ||
+        host.startsWith('127.');
+
+    if (isLoopback) {
+        const message = document.createElement('p');
+        message.className = 'modal-qr-caption';
+        message.append(
+            'This page is open on localhost.',
+            document.createElement('br'),
+            'Reopen it using the network address shown in',
+            document.createElement('br'),
+            'Minecraft chat to show a QR code here.',
+        );
+        wrapper.append(message);
+    } else {
+        const code = document.createElement('div');
+        code.className = 'modal-qr-code';
+        code.innerHTML = new QRCode({
+            content: location.origin,
+            width: 256,
+            height: 256,
+            padding: 1,
+            color: '#130512',
+            background: '#ffffff',
+            ecl: 'M',
+        }).svg();
+
+        const caption = document.createElement('p');
+        caption.className = 'modal-qr-caption';
+        caption.append(
+            'Scan to open on your phone',
+            document.createElement('br'),
+            '(local network only)',
+        );
+
+        wrapper.append(code, caption);
+    }
+
+    modalManager.open(wrapper);
 });
 
 clearRecipientElement.addEventListener('click', () => {
