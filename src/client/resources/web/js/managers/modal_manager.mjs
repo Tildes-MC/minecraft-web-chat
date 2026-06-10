@@ -21,9 +21,6 @@ class ModalManager {
     /** @type {HTMLButtonElement} */
     #closeButton;
 
-    /** @type {Element | null} */
-    #previouslyFocused = null;
-
     #isOpen = false;
 
     /**
@@ -54,11 +51,6 @@ class ModalManager {
      * @param {Node} contents - The element to display inside the modal.
      */
     open(contents) {
-        // Remember what had focus so it can be restored when the modal closes.
-        if (!this.#isOpen) {
-            this.#previouslyFocused = document.activeElement;
-        }
-
         this.#body.replaceChildren(contents);
         this.#container.style.display = 'block';
         this.#container.ariaHidden = 'false';
@@ -75,11 +67,6 @@ class ModalManager {
         this.#container.ariaHidden = 'true';
         this.#body.replaceChildren();
         this.#isOpen = false;
-        // Return focus to whatever triggered the modal.
-        if (this.#previouslyFocused instanceof HTMLElement) {
-            this.#previouslyFocused.focus();
-        }
-        this.#previouslyFocused = null;
     }
 }
 
