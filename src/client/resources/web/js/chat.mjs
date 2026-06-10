@@ -126,11 +126,14 @@ function isLoopbackUrl(url) {
 }
 
 /**
- * The page is always served over localhost, so to point a phone at this
- * machine we ask the backend for the LAN address. When the chat isn't open to
- * the local network there is nothing to scan, so the QR button is hidden.
+ * Asks the backend for the URL other devices on the local network can use to
+ * reach this machine.
+ *
+ * @returns {Promise<string | null>} The LAN URL, or null when there is no
+ *     usable one (e.g. LAN access is disabled or the resolver fell back to
+ *     localhost).
  */
-async function setupQrButton() {
+async function fetchLanUrl() {
     let networkInfo = null;
     try {
         const response = await fetch('/api/network-info');
@@ -138,7 +141,7 @@ async function setupQrButton() {
             networkInfo = await response.json();
         }
     } catch {
-        // Endpoint unreachable, treat the LAN address as unavailable.
+        return null;
     }
 
     if (
@@ -147,14 +150,32 @@ async function setupQrButton() {
         !networkInfo.url ||
         isLoopbackUrl(networkInfo.url)
     ) {
-        // No usable LAN address (e.g. the resolver fell back to localhost), so
-        // there is nothing a phone could scan and reach.
+        return null;
+    }
+
+    return networkInfo.url;
+}
+
+/**
+ * The page is always served over localhost, so to point a phone at this
+ * machine we ask the backend for the LAN address. When the chat isn't open to
+ * the local network there is nothing to scan, so the QR button is hidden.
+ */
+async function setupQrButton() {
+    if ((await fetchLanUrl()) === null) {
         qrButtonElement.style.display = 'none';
         return;
     }
 
-    const lanUrl = networkInfo.url;
-    qrButtonElement.addEventListener('click', () => {
+    qrButtonElement.addEventListener('click', async () => {
+        // The LAN address can change while the page is open, so fetch a fresh
+        // one for every QR code shown.
+        const lanUrl = await fetchLanUrl();
+        if (lanUrl === null) {
+            qrButtonElement.style.display = 'none';
+            return;
+        }
+
         const wrapper = document.createElement('div');
         wrapper.className = 'modal-qr';
 
