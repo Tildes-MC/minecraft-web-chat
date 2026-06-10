@@ -4,7 +4,9 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Collections;
+import java.util.Enumeration;
 
 /**
  * Resolves the address this machine is reachable at on the local network, for
@@ -56,10 +58,18 @@ public final class LocalNetworkAddressResolver {
         String bestHost = null;
         AddressPreference bestPreference = AddressPreference.UNUSABLE;
 
+        Enumeration<NetworkInterface> interfaces;
         try {
-            for (NetworkInterface networkInterface : Collections.list(
-                NetworkInterface.getNetworkInterfaces()
-            )) {
+            interfaces = NetworkInterface.getNetworkInterfaces();
+        } catch (SocketException e) {
+            LOGGER.error("Could not get interfaces");
+            return "localhost";
+        }
+
+        for (NetworkInterface networkInterface : Collections.list(interfaces)) {
+            // An interface can disappear mid-scan (VPN reconnect, Wi-Fi
+            // toggling); a failure on one shouldn't abort the others.
+            try {
                 // Ignore offline interfaces
                 if (!networkInterface.isUp()) {
                     continue;
@@ -75,7 +85,7 @@ public final class LocalNetworkAddressResolver {
                     continue;
                 }
 
-                // Ignore virtual interfaces
+                // Ignore sub-interfaces (e.g. eth0:1)
                 if (networkInterface.isVirtual()) {
                     continue;
                 }
@@ -97,12 +107,13 @@ public final class LocalNetworkAddressResolver {
                         bestHost = formatHostForUrl(address);
                     }
                 }
+            } catch (Exception e) {
+                LOGGER.warn(
+                    "Skipping network interface {} while looking for a local address",
+                    networkInterface.getName(),
+                    e
+                );
             }
-        } catch (Exception e) {
-            LOGGER.warn(
-                "Could not scan network interfaces for a local address",
-                e
-            );
         }
 
         if (bestPreference == AddressPreference.UNUSABLE) {
