@@ -13,6 +13,7 @@ import io.javalin.http.staticfiles.Location;
 import io.javalin.websocket.WsCloseStatus;
 import io.javalin.websocket.WsContext;
 import io.javalin.websocket.WsMessageContext;
+import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -294,7 +295,16 @@ public class WebInterface {
             ws.onMessage((ctx) -> handleReceivedMessages(ctx));
 
             ws.onError((ctx) -> {
-                LOGGER.error("WebSocket error: ", ctx.error());
+                // A closed channel only means the connection was torn down abruptly,
+                // for example when the game exits while a browser is still connected.
+                if (ctx.error() instanceof ClosedChannelException) {
+                    LOGGER.debug(
+                        "WebSocket channel closed abruptly: {}",
+                        ctx.session.getRemoteSocketAddress()
+                    );
+                } else {
+                    LOGGER.error("WebSocket error: ", ctx.error());
+                }
                 removeConnection(ctx);
             });
         });
@@ -352,14 +362,22 @@ public class WebInterface {
      * @param ctx The WebSocket context to remove.
      */
     private void removeConnection(WsContext ctx) {
-        connections.remove(ctx);
+        // Both onError and onClose can fire for the same connection.
+        // Only the call that actually removes it may decrement the counter,
+        // otherwise the shutdown wait below could be released too early.
+        boolean removed = connections.remove(ctx);
+        if (!removed) {
+            return;
+        }
 
-        if (shutdownInitiated.get()) {
+        if (!shutdownInitiated.get()) {
+            return;
+        }
+
+        synchronized (connectionsToClose) {
             int remaining = connectionsToClose.decrementAndGet();
-            synchronized (connectionsToClose) {
-                if (remaining == 0) {
-                    connectionsToClose.notifyAll();
-                }
+            if (remaining == 0) {
+                connectionsToClose.notifyAll();
             }
         }
     }
