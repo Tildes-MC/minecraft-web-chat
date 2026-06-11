@@ -22,6 +22,7 @@ import { tabListManager } from './managers/tab_list_manager.mjs';
  * @typedef {import('./messages/message_types.mjs').HistoryMetaData} HistoryMetaData
  * @typedef {import('./messages/message_types.mjs').PlayerInfo} PlayerInfo
  * @typedef {import('./messages/message_types.mjs').ServerConnectionState} ServerConnectionState
+ * @typedef {import('./messages/message_types.mjs').ServerInfo} ServerInfo
  */
 
 /**
@@ -364,26 +365,11 @@ function handleMinecraftServerConnectionState(message) {
             break;
         case 'join':
             console.log('Received join event. Welcome welcome!');
-
-            // First clear whatever is in history as well as the player list so the slate is clean.
-            // Note: the join event often comes after the client already received messages.
-            // This is not a problem as they are stored in the message history and will loaded again once history is requested.
-            // The player list is also send every few seconds so this is also not an issue.
-            // Doing it in a different way would make things more complex than needed.
-            playerList.clearAll();
-            clearMessageHistory();
-
-            // Then we update server info.
-            serverInfo.update(message.server.name, message.server.identifier);
-
-            // Finally request message history
-            requestHistory(messageHistoryLimit);
-
+            updateConnectionStatus('connected', message.server);
             break;
         case 'disconnect':
             console.log('Received disconnect event. Sad to see you go.');
-            serverInfo.clear();
-            playerList.clearAll();
+            updateConnectionStatus('no-server');
             break;
     }
 }
@@ -395,21 +381,45 @@ function handleMinecraftServerConnectionState(message) {
  */
 
 /**
- * Update status elements
- * @param {'connected' | 'disconnected' | 'error'} connectionStatus
+ * Update UI to match websocket and minecraft server connection state.
+ * @param {'connected' | 'no-server' | 'disconnected' | 'error'} connectionStatus
+ * @param {ServerInfo} [server]
  */
-function updateWebsocketConnectionStatus(connectionStatus) {
+function updateConnectionStatus(connectionStatus, server) {
     switch (connectionStatus) {
         case 'connected':
-            statusElement.textContent = 'Join a server to chat';
-            statusElement.dataset['status'] = 'connected';
+            if (!server) {
+                throw new Error('Server info is required for connected state.');
+            }
+
+            // First clear whatever is in history as well as the player list so the slate is clean.
+            // Note: the join event often comes after the client already received messages.
+            // This is not a problem as they are stored in the message history and will loaded again once history is requested.
+            // The player list is also send every few seconds so this is also not an issue.
+            // Doing it in a different way would make things more complex than needed.
+            playerList.clearAll();
+            clearMessageHistory();
+
+            // Then we update server info.
+            serverInfo.update(server.name, server.identifier);
+            faviconManager.setConnectionState(connectionStatus);
+
+            // Finally request message history
+            requestHistory(messageHistoryLimit);
+            break;
+        case 'no-server':
+            faviconManager.setConnectionState(connectionStatus);
+            serverInfo.clear();
+            playerList.clearAll();
             break;
         case 'disconnected':
+            faviconManager.setConnectionState(connectionStatus);
             serverInfo.clear();
             statusElement.dataset['status'] = 'disconnected';
             statusElement.textContent = 'Disconnected from Minecraft';
             break;
         case 'error':
+            faviconManager.setConnectionState(connectionStatus);
             serverInfo.clear();
             statusElement.dataset['status'] = 'error';
             statusElement.textContent = 'Error: See browser console';
@@ -422,13 +432,14 @@ function connect() {
 
     ws.onopen = function () {
         console.log('Connected to websocket server');
-        updateWebsocketConnectionStatus('connected');
+        // Connected to the mod, but not in a game until a join event arrives.
+        updateConnectionStatus('no-server');
         reconnectAttempts = 0; // Reset attempts
     };
 
     ws.onclose = function () {
         console.log('Websocket connection closed. Attempting to reconnect...');
-        updateWebsocketConnectionStatus('disconnected');
+        updateConnectionStatus('disconnected');
 
         if (reconnectAttempts < maxReconnectAttempts) {
             reconnectAttempts++;
@@ -438,7 +449,7 @@ function connect() {
 
     ws.onerror = function (error) {
         console.error('WebSocket error:', error);
-        updateWebsocketConnectionStatus('error');
+        updateConnectionStatus('error');
     };
 
     ws.onmessage = function (event) {
@@ -496,7 +507,7 @@ function connect() {
 function sendWebsocketMessage(type, payload) {
     if (ws?.readyState !== WebSocket.OPEN) {
         console.log('WebSocket is not connected');
-        updateWebsocketConnectionStatus('disconnected');
+        updateConnectionStatus('disconnected');
         return;
     }
 

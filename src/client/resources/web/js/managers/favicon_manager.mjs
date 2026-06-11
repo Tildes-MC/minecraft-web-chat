@@ -15,13 +15,56 @@ class FaviconManager {
      */
     #hasPing = false;
 
+    /**
+     * @type {'connected' | 'no-server' | 'disconnected' | 'error'}
+     */
+    #connectionState = 'disconnected';
+
+    /**
+     * Decoded favicon images, kept by src so they can be redrawn without
+     * refetching.
+     * @type {Map<string, HTMLImageElement>}
+     */
+    #imageCache = new Map();
+
     constructor() {
+        // Preload every favicon image now, while the web server is reachable,
+        // and keep the decoded Image objects in memory. The disconnected icon
+        // is needed precisely when the server serving it is gone, so fetching
+        // it on demand would fail; drawing a retained image always works.
+        for (const size of [16, 32]) {
+            for (const variant of [
+                '',
+                '_blank',
+                '_ping',
+                '_no_server',
+                '_disconnected',
+            ]) {
+                this.#loadImage(`img/icon_${size}${variant}.png`);
+            }
+        }
+
         // Set up visibility change handler
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 this.clear();
             }
         });
+    }
+
+    /**
+     * Return a cached favicon image, starting the load on first request.
+     * @param {string} src
+     * @returns {HTMLImageElement}
+     */
+    #loadImage(src) {
+        let img = this.#imageCache.get(src);
+        if (!img) {
+            img = new Image();
+            img.src = src;
+            this.#imageCache.set(src, img);
+        }
+        return img;
     }
 
     /**
@@ -64,6 +107,29 @@ class FaviconManager {
     }
 
     /**
+     * Update the Minecraft server connection state shown on the favicon.
+     * Unlike the message count, this persists while the tab is visible so a
+     * disconnect stays noticeable.
+     * @param {'connected' | 'no-server' | 'disconnected' | 'error'} state
+     */
+    setConnectionState(state) {
+        if (this.#connectionState === state) {
+            return;
+        }
+
+        this.#connectionState = state;
+        this.#updateFavicon();
+    }
+
+    /**
+     * Get the current connection state
+     * @returns {'connected' | 'no-server' | 'disconnected' | 'error'}
+     */
+    getConnectionState() {
+        return this.#connectionState;
+    }
+
+    /**
      * Render a favicon with the current counter and ping indicator
      */
     #updateFavicon() {
@@ -88,19 +154,26 @@ class FaviconManager {
                 return;
             }
 
-            const img = new Image();
-
-            // Pings should not happen without a count
-            if (this.#hasPing && this.#messageCount > 0) {
-                img.src = `img/icon_${size}_ping.png`;
+            let image;
+            if (
+                this.#connectionState === 'disconnected' ||
+                this.#connectionState === 'error'
+            ) {
+                image = `icon_${size}_disconnected.png`;
+            } else if (this.#connectionState === 'no-server') {
+                image = `icon_${size}_no_server.png`;
+            } else if (this.#hasPing && this.#messageCount > 0) {
+                image = `icon_${size}_ping.png`;
             } else if (this.#messageCount > 0) {
-                img.src = `img/icon_${size}_blank.png`;
+                image = `icon_${size}_blank.png`;
             } else {
                 // Default image, will restore the favicon
-                img.src = `img/icon_${size}.png`;
+                image = `icon_${size}.png`;
             }
 
-            img.onload = () => {
+            const img = this.#loadImage(`img/${image}`);
+
+            const draw = () => {
                 ctx.drawImage(img, 0, 0, size, size);
 
                 if (this.#messageCount > 0) {
@@ -122,6 +195,13 @@ class FaviconManager {
 
                 link.href = canvas.toDataURL();
             };
+
+            if (!img.complete) {
+                img.addEventListener('load', draw, { once: true });
+                return;
+            }
+
+            draw();
         });
     }
 }
