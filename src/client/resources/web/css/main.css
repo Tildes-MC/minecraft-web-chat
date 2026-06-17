@@ -315,10 +315,19 @@ body {
     overflow-y: auto;
     padding: 1rem;
     display: flex;
-    flex-direction: column-reverse; /* Makes new messages appear at bottom */
+    flex-direction: column;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0.1);
     scrollbar-gutter: stable;
+}
+
+/* Keep messages anchored to the bottom while they are too few to fill the
+   container, without reversing their order (which broke text selection).
+   The margin collapses to zero once messages overflow, so it never
+   interferes with scrolling. Scroll positioning itself is handled in JS. */
+#messages::before {
+    content: '';
+    margin-top: auto;
 }
 
 #history-loader {
