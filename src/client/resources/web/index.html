@@ -27,17 +27,11 @@
     </head>
     <body>
         <div id="modal-container" aria-hidden="true">
-            <div id="modal-content">
-                <div id="modal-text">
-                    <p>Are you sure you want to open the following website?</p>
-                    <p class="modal-url"></p>
-                    <p>Never open links from people you don't trust!</p>
-                </div>
-                <div class="modal-buttons">
-                    <button id="modal-confirm">Yes</button>
-                    <button id="modal-copy">Copy to Clipboard</button>
-                    <button id="modal-cancel">No</button>
-                </div>
+            <div id="modal-content" role="dialog" aria-modal="true">
+                <button id="modal-close" aria-label="Close">
+                    <img src="img/heroicons/x-mark.svg" alt="" />
+                </button>
+                <div id="modal-body"></div>
             </div>
         </div>
         <div id="hover-container" aria-hidden="true"></div>
@@ -110,6 +104,16 @@
                 <h2>
                     Players Online
                     <span id="player-count" aria-live="polite">(0)</span>
+                    <button
+                        id="qr-button"
+                        aria-label="Show QR code to open on phone"
+                    >
+                        <img
+                            src="img/heroicons/qr-code.svg"
+                            alt="QR code button"
+                            title="Open in mobile"
+                        />
+                    </button>
                 </h2>
                 <ul id="player-list"></ul>
             </aside>

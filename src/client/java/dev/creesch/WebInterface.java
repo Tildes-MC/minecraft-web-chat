@@ -7,6 +7,7 @@ import dev.creesch.model.IncomingWebsocketJsonMessage.HistoryPayload;
 import dev.creesch.model.WebsocketJsonMessage;
 import dev.creesch.model.WebsocketMessageBuilder;
 import dev.creesch.storage.ChatMessageRepository;
+import dev.creesch.util.LocalNetworkAddressResolver;
 import dev.creesch.util.NamedLogger;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
@@ -15,7 +16,9 @@ import io.javalin.websocket.WsContext;
 import io.javalin.websocket.WsMessageContext;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +34,11 @@ public class WebInterface {
     // Server related things
     @Getter
     private final Javalin server;
+
+    // Whether the server was started open to the local network. Stored so a
+    // later config change can be detected and trigger a restart.
+    @Getter
+    private final boolean lanEnabled;
 
     private final Gson gson = new Gson();
     private final Set<WsContext> connections = Collections.newSetFromMap(
@@ -61,18 +69,28 @@ public class WebInterface {
             );
             this.messageRepository = null;
             this.server = null;
+            this.lanEnabled = false;
             return;
         }
         this.messageRepository = messageRepository;
+        this.lanEnabled = WebInterface.config.openChatToLan;
         server = createServer();
         setupWebSocket();
+        setupHttpRoutes();
 
         try {
-            server.start(WebInterface.config.httpPortNumber);
+            if (lanEnabled) {
+                // Bind to all interfaces so other devices on the network can connect.
+                server.start(WebInterface.config.httpPortNumber);
+            } else {
+                // Bind to loopback only so the chat is reachable from this machine alone.
+                server.start("localhost", WebInterface.config.httpPortNumber);
+            }
             isServerRunning.getAndSet(true);
             LOGGER.info(
-                "Web interface started on port {}",
-                WebInterface.config.httpPortNumber
+                "Web interface started on port {} (open to LAN: {})",
+                WebInterface.config.httpPortNumber,
+                lanEnabled
             );
         } catch (Exception e) {
             LOGGER.error(
@@ -213,6 +231,32 @@ public class WebInterface {
                 });
             }
         }
+    }
+
+    /**
+     * Exposes the address other devices on the local network can use to reach
+     * this machine. The web page itself is always opened through localhost, so
+     * it relies on this endpoint to build things like the QR code that points a
+     * phone at the LAN address.
+     */
+    private void setupHttpRoutes() {
+        server.unsafe.routes.get("/api/network-info", (ctx) -> {
+            Map<String, Object> info = new HashMap<>();
+            info.put("lanEnabled", lanEnabled);
+
+            if (lanEnabled) {
+                String host =
+                    LocalNetworkAddressResolver.resolveLocalNetworkHost();
+                info.put(
+                    "url",
+                    "http://" + host + ":" + WebInterface.config.httpPortNumber
+                );
+            } else {
+                info.put("url", null);
+            }
+
+            ctx.contentType("application/json").result(gson.toJson(info));
+        });
     }
 
     private void setupWebSocket() {

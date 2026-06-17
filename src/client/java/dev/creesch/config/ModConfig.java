@@ -30,6 +30,12 @@ public class ModConfig {
     @SerialEntry(comment = "Port number used to serve the webinterface")
     public int httpPortNumber = 8080;
 
+    @SerialEntry(
+        comment = "Open the web chat to your local network so other devices (like your phone) can connect. " +
+            "When disabled the chat is only reachable from this computer through localhost."
+    )
+    public boolean openChatToLan = true;
+
     @SerialEntry(comment = "Enable ping on username")
     public boolean pingOnUsername = true;
 
