@@ -143,7 +143,7 @@ public class WebInterface {
                     "default-src 'self'; " +
                         "font-src 'self'; " +
                         "script-src 'self'; " +
-                        "style-src 'self'; " +
+                        "style-src 'self' 'unsafe-hashes' 'sha256-DcMq7uOucLKEgtgzoltTYR6sLdxIkuFJHJ1VyQUfKTA=' 'sha256-J2Ww7VPP1FmKdX6t3jVCoEgy6SlI1Mx3CnNaGsHsEkY='; " +
                         "img-src 'self' data: https://textures.minecraft.net; " + // Need to fetch player textures.
                         "connect-src 'self';"
                 );
