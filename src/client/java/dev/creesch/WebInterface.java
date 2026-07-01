@@ -11,9 +11,11 @@ import dev.creesch.util.LocalNetworkAddressResolver;
 import dev.creesch.util.NamedLogger;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
+import io.javalin.websocket.PingManager;
 import io.javalin.websocket.WsCloseStatus;
 import io.javalin.websocket.WsContext;
 import io.javalin.websocket.WsMessageContext;
+import java.lang.reflect.Method;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -472,6 +475,36 @@ public class WebInterface {
 
         LOGGER.info("Shutting down web interface");
         server.stop();
+
+        shutdownAutomaticPingExecutor();
+    }
+
+    /**
+     * The automatic pings enabled per connection ({@code enableAutomaticPings})
+     * run on a process-wide, non-daemon {@link ExecutorService} owned by
+     * Javalin's static {@code PingManager}. {@code server.stop()} does not shut
+     * this executor down, so once the web page has been opened even once its
+     * thread keeps running after Minecraft returns from main(). A lingering
+     * non-daemon thread prevents the JVM from exiting, which trips Minecraft's
+     * client shutdown watchdog (MC 26.2+) and crashes the game on exit.
+     *
+     * Javalin exposes no API to stop it, so reach the executor reflectively and
+     * shut it down. Wrapped defensively: if Javalin internals change we only log
+     * instead of breaking shutdown.
+     */
+    private static void shutdownAutomaticPingExecutor() {
+        try {
+            Method getExecutor = PingManager.class.getDeclaredMethod(
+                "getExecutor"
+            );
+            getExecutor.setAccessible(true);
+            Object executor = getExecutor.invoke(PingManager.INSTANCE);
+            if (executor instanceof ExecutorService service) {
+                service.shutdownNow();
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Could not shut down Javalin ping executor", e);
+        }
     }
 
     private String sanitizeMessage(String message) {
