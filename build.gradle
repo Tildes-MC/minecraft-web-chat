@@ -18,7 +18,7 @@ base {
 repositories {
     mavenCentral()
 	maven { url = uri("https://maven.terraformersmc.com/releases/") } // Mod Menu
-	maven { url = uri("https://maven.isxander.dev/releases") } // YACL
+	maven { url = uri("https://api.modrinth.com/maven") } // YACL
 }
 
 loom {
@@ -44,7 +44,7 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
 	implementation "com.terraformersmc:modmenu:${project.mod_menu_version}"
-	implementation "dev.isxander:yet-another-config-lib:${project.yacl_version}"
+	implementation "maven.modrinth:yacl:${project.yacl_version}"
 
 	// Java dependencies
 	// Compile only

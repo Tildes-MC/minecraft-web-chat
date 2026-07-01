@@ -2,19 +2,19 @@
 ext {
     // Fabric Properties
     // check these on https://fabricmc.net/develop
-    minecraft_version = '26.1.2'
-    loader_version = '0.18.6'
+    minecraft_version = '26.2'
+    loader_version = '0.19.3'
     loom_version = '1.16-SNAPSHOT'
 
     // Mod Properties
-    mod_version = '1.8.0'
+    mod_version = '1.9.0'
     maven_group = 'dev.creesch'
     archives_base_name = 'web-chat'
 
     // Dependencies
-    fabric_version = '0.145.4+26.1.2'
-    yacl_version = '3.9.2+26.1-fabric'
-    mod_menu_version = '18.0.0-alpha.8'
+    fabric_version = '0.153.0+26.2'
+    yacl_version = '3.9.5+26.2-fabric'
+    mod_menu_version = '20.0.0-beta.4'
 
     // Generic java dependencies
     javalin_version = '7.2.2'
