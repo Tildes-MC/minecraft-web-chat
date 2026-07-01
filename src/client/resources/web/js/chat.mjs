@@ -1,28 +1,20 @@
 // @ts-check
 'use strict';
 
-import { querySelectorWithAssertion, formatTimestamp } from './utils.mjs';
-import {
-    assertIsComponent,
-    ComponentError,
-    formatMessage,
-    initializeObfuscation,
-} from './messages/message_parsing.mjs';
+import { querySelectorWithAssertion } from './utils.mjs';
+import { initializeObfuscation } from './messages/message_parsing.mjs';
 import { serverInfo } from './managers/server_info.mjs';
 import { playerList, toggleSidebar } from './managers/player_list.mjs';
 import { directMessageManager } from './managers/direct_message.mjs';
 import { parseModServerMessage } from './messages/message_types.mjs';
 import { faviconManager } from './managers/favicon_manager.mjs';
 import { tabListManager } from './managers/tab_list_manager.mjs';
-import { modalManager } from './managers/modal_manager.mjs';
-import QRCode from './vendor/qrcode-svg.mjs';
+import { messageList } from './managers/message_list.mjs';
+import { setupQrButton } from './managers/qr_button.mjs';
 
 /**
  * Import all types we might need
- * @typedef {import('./messages/message_parsing.mjs').Component} Component
  * @typedef {import('./messages/message_types.mjs').ChatMessage} ChatMessage
- * @typedef {import('./messages/message_types.mjs').HistoryMetaData} HistoryMetaData
- * @typedef {import('./messages/message_types.mjs').PlayerInfo} PlayerInfo
  * @typedef {import('./messages/message_types.mjs').ServerConnectionState} ServerConnectionState
  * @typedef {import('./messages/message_types.mjs').ServerInfo} ServerInfo
  */
@@ -44,14 +36,6 @@ let ws = null;
 /** @type {number} */
 let reconnectAttempts = 0;
 
-// Message History Management
-const messageHistoryLimit = 50;
-let isLoadingHistory = false;
-
-// Used to keep track of messages already shown. To prevent possible duplication on server join.
-/** @type {Set<string>} */
-const displayedMessageIds = new Set();
-
 /**
  * ======================
  *  HTML elements
@@ -63,20 +47,6 @@ const statusElement = /** @type {HTMLDivElement} */ (
 );
 const sidebarToggleElement = /** @type {HTMLImageElement} */ (
     querySelectorWithAssertion('#sidebar-toggle')
-);
-const qrButtonElement = /** @type {HTMLButtonElement} */ (
-    querySelectorWithAssertion('#qr-button')
-);
-
-const messagesElement = /** @type {HTMLElement} */ (
-    querySelectorWithAssertion('#messages')
-);
-const historyLoaderElement = /** @type {HTMLDivElement} */ (
-    querySelectorWithAssertion('#history-loader')
-);
-
-const skipToPresentButton = /** @type {HTMLButtonElement} */ (
-    querySelectorWithAssertion('#skip-to-present')
 );
 
 const inputAlertElement = /** @type {HTMLDivElement} */ (
@@ -105,105 +75,16 @@ sidebarToggleElement.addEventListener('click', () => {
     toggleSidebar();
 });
 
-/**
- * Whether a URL points at this machine's loopback interface, in which case it
- * is useless as something to scan from another device.
- *
- * @param {string} url
- * @returns {boolean}
- */
-function isLoopbackUrl(url) {
-    try {
-        const host = new URL(url).hostname;
-        return (
-            host === 'localhost' ||
-            host === '::1' ||
-            host === '[::1]' ||
-            host.startsWith('127.')
-        );
-    } catch {
+// History requests need a server to target, so the message list delegates the
+// actual send back to us here.
+messageList.init((limit, before) => {
+    const serverId = serverInfo.getId();
+    if (!serverId) {
         return false;
     }
-}
-
-/**
- * Asks the backend for the URL other devices on the local network can use to
- * reach this machine.
- *
- * @returns {Promise<string | null>} The LAN URL, or null when there is no
- *     usable one (e.g. LAN access is disabled or the resolver fell back to
- *     localhost).
- */
-async function fetchLanUrl() {
-    let networkInfo = null;
-    try {
-        const response = await fetch('/api/network-info');
-        if (response.ok) {
-            networkInfo = await response.json();
-        }
-    } catch {
-        return null;
-    }
-
-    if (
-        !networkInfo ||
-        !networkInfo.lanEnabled ||
-        !networkInfo.url ||
-        isLoopbackUrl(networkInfo.url)
-    ) {
-        return null;
-    }
-
-    return networkInfo.url;
-}
-
-/**
- * The page is always served over localhost, so to point a phone at this
- * machine we ask the backend for the LAN address. When the chat isn't open to
- * the local network there is nothing to scan, so the QR button is hidden.
- */
-async function setupQrButton() {
-    if ((await fetchLanUrl()) === null) {
-        qrButtonElement.style.display = 'none';
-        return;
-    }
-
-    qrButtonElement.addEventListener('click', async () => {
-        // The LAN address can change while the page is open, so fetch a fresh
-        // one for every QR code shown.
-        const lanUrl = await fetchLanUrl();
-        if (lanUrl === null) {
-            qrButtonElement.style.display = 'none';
-            return;
-        }
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'modal-qr';
-
-        const code = document.createElement('div');
-        code.className = 'modal-qr-code';
-        code.innerHTML = new QRCode({
-            content: lanUrl,
-            width: 256,
-            height: 256,
-            padding: 1,
-            color: 'black',
-            background: 'white',
-            ecl: 'L',
-        }).svg();
-
-        const caption = document.createElement('p');
-        caption.className = 'modal-qr-caption';
-        caption.append(
-            'Scan to open on your phone',
-            document.createElement('br'),
-            '(local network only)',
-        );
-
-        wrapper.append(code, caption);
-        modalManager.open(wrapper);
-    });
-}
+    sendWebsocketMessage('history', { serverId, limit, before });
+    return true;
+});
 
 setupQrButton();
 
@@ -252,212 +133,11 @@ chatInputElement.addEventListener('blur', function () {
     tabListManager.hide();
 });
 
-// Scroll-based history loading
-/** @type {number | null} */
-let scrollDebounceTimer = null;
-messagesElement.addEventListener('scroll', () => {
-    skipToPresentButton.style.display =
-        messagesElement.scrollTop < -200 ? 'block' : 'none';
-
-    if (scrollDebounceTimer) {
-        clearTimeout(scrollDebounceTimer);
-    }
-
-    scrollDebounceTimer = setTimeout(() => {
-        checkScrollAndLoadHistory();
-    }, 100);
-});
-
-skipToPresentButton.addEventListener('click', () => {
-    messagesElement.scrollTop = 0;
-});
-
-/**
- * Check if the user has scrolled near the top and load more history if needed
- */
-function checkScrollAndLoadHistory() {
-    if (isLoadingHistory) {
-        return;
-    }
-
-    // Check if there's more history to load
-    const maybeTimestamp = Number(
-        historyLoaderElement.dataset['oldestMessageTimestamp'] ?? '',
-    );
-    if (!isFinite(maybeTimestamp)) {
-        return;
-    }
-
-    const scrollThreshold = 300; // pixels from top to trigger load
-    const maxScroll =
-        messagesElement.scrollHeight - messagesElement.clientHeight;
-    const currentScrollFromTop = maxScroll + messagesElement.scrollTop;
-
-    if (currentScrollFromTop <= scrollThreshold) {
-        requestHistory(messageHistoryLimit, maybeTimestamp);
-    }
-}
-
 /**
  * ======================
  *  Chat related functions
  * ======================
  */
-
-/**
- * Request chat history from the server
- * @param {number} limit
- * @param {number} [before]
- */
-function requestHistory(limit, before) {
-    if (isLoadingHistory) {
-        console.log('Already loading history, skipping request.');
-        return;
-    }
-
-    // Probably disconnected, do nothing.
-    const serverId = serverInfo.getId();
-    if (!serverId) {
-        return;
-    }
-
-    isLoadingHistory = true;
-    historyLoaderElement.style.display = 'flex';
-
-    sendWebsocketMessage('history', {
-        serverId,
-        limit,
-        before,
-    });
-}
-
-/**
- * Handle minecraft chat messages
- * @param {ChatMessage} message
- */
-function handleChatMessage(message) {
-    // Skip if we've already seen this message
-    if (displayedMessageIds.has(message.payload.uuid)) {
-        return;
-    }
-
-    displayedMessageIds.add(message.payload.uuid);
-
-    if (!message.payload.history) {
-        faviconManager.handleNewMessage(message.payload.isPing);
-    }
-
-    requestAnimationFrame(() => {
-        const messageElement = document.createElement('article');
-        messageElement.classList.add('message');
-
-        if (message.payload.isPing) {
-            messageElement.classList.add('ping');
-        }
-
-        // Create timestamp outside of try block. That way errors can be timestamped as well for the moment they did happen.
-        const { timeString, fullDateTime } = formatTimestamp(message.timestamp);
-        const timeElement = document.createElement('time');
-        timeElement.dateTime = new Date(message.timestamp).toISOString();
-        timeElement.textContent = timeString;
-        timeElement.title = fullDateTime;
-        timeElement.className = 'message-time';
-        messageElement.appendChild(timeElement);
-
-        try {
-            // Format the chat message - this uses the Component format from message_parsing
-            assertIsComponent(message.payload.component);
-            const chatContent = formatMessage(
-                message.payload.component,
-                message.payload.translations,
-            );
-            if (chatContent.textContent?.startsWith('Web chat: http://')) {
-                // Ignore web chat links.
-                return;
-            }
-
-            messageElement.appendChild(chatContent);
-        } catch (e) {
-            console.error(message);
-            if (e instanceof ComponentError) {
-                console.error('Invalid component:', e.toString());
-                messageElement.appendChild(
-                    formatMessage(
-                        {
-                            text: 'Invalid message received from server',
-                            color: 'red',
-                        },
-                        {},
-                    ),
-                );
-            } else {
-                console.error('Error parsing message:', e);
-                messageElement.appendChild(
-                    formatMessage(
-                        {
-                            text: 'Error parsing message',
-                            color: 'red',
-                        },
-                        {},
-                    ),
-                );
-            }
-        }
-
-        // Storing raw scroll value. To be used to fix the scroll position down the line.
-        const scrolledFromTop = messagesElement.scrollTop;
-
-        if (message.payload.history) {
-            // Insert the message before the history loader
-            historyLoaderElement.before(messageElement);
-        } else {
-            // For new messages, insert at the start
-            messagesElement.insertBefore(
-                messageElement,
-                messagesElement.firstChild,
-            );
-        }
-
-        // If it is due to the flex column reverse or something else, once the user has scrolled it doesn't "lock" at the bottom.
-        // Let's fix that, if the user was near the bottom when a message was inserted we put them back there.
-        // Note: the values appear negative due to the flex column shenanigans.
-        if (scrolledFromTop <= 1 && scrolledFromTop >= -35) {
-            messagesElement.scrollTop = 0;
-        }
-    });
-}
-
-function clearMessageHistory() {
-    console.log('clearing history.');
-    // empty previously seen messages.
-    displayedMessageIds.clear();
-    // Reset the history loader
-    historyLoaderElement.style.display = 'none';
-    historyLoaderElement.dataset['oldestMessageTimestamp'] = '';
-
-    // Only remove messages, leaving the history loader alone.
-    const messageElements = messagesElement.querySelectorAll('.message');
-    messageElements.forEach((element) => {
-        element.remove();
-    });
-}
-
-/**
- * Handle history meta data
- * @param {HistoryMetaData} message
- */
-function handleHistoryMetaData(message) {
-    isLoadingHistory = false;
-    historyLoaderElement.style.display = 'none';
-
-    if (message.payload.moreHistoryAvailable) {
-        historyLoaderElement.dataset['oldestMessageTimestamp'] =
-            message.payload.oldestMessageTimestamp.toString();
-    } else {
-        // Clear timestamp to prevent further load attempts
-        historyLoaderElement.dataset['oldestMessageTimestamp'] = '';
-    }
-}
 
 /**
  * Handle different minecraft server connection states
@@ -505,14 +185,14 @@ function updateConnectionStatus(connectionStatus, server) {
             // The player list is also send every few seconds so this is also not an issue.
             // Doing it in a different way would make things more complex than needed.
             playerList.clearAll();
-            clearMessageHistory();
+            messageList.clear();
 
             // Then we update server info.
             serverInfo.update(server.name, server.identifier);
             faviconManager.setConnectionState(connectionStatus);
 
             // Finally request message history
-            requestHistory(messageHistoryLimit);
+            messageList.requestRecentHistory();
             break;
         case 'no-server':
             faviconManager.setConnectionState(connectionStatus);
@@ -580,11 +260,17 @@ function connect() {
             }
 
             switch (message.type) {
-                case 'chatMessage':
-                    handleChatMessage(message);
+                case 'chatMessage': {
+                    const isNew = messageList.addMessage(message);
+                    // Notify only for genuinely new (non-duplicate) live
+                    // messages, never for backfilled history.
+                    if (isNew && !message.payload.history) {
+                        faviconManager.handleNewMessage(message.payload.isPing);
+                    }
                     break;
+                }
                 case 'historyMetaData':
-                    handleHistoryMetaData(message);
+                    messageList.handleHistoryMetaData(message);
                     break;
                 case 'serverConnectionState':
                     handleMinecraftServerConnectionState(message);
