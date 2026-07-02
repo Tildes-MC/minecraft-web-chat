@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import lombok.Getter;
 import net.minecraft.client.Minecraft;
@@ -59,7 +59,6 @@ public class WebInterface {
 
     private String staticFilesPath = "";
     private final AtomicBoolean shutdownInitiated = new AtomicBoolean(false);
-    private AtomicInteger connectionsToClose;
     private final AtomicBoolean isServerRunning = new AtomicBoolean(false);
 
     public WebInterface(ChatMessageRepository messageRepository) {
@@ -275,9 +274,6 @@ public class WebInterface {
                     return;
                 }
 
-                // For localhost connections pinging likely isn't needed.
-                // But if someone wants to use the mod on their phone or something it might be useful to include it.
-                ctx.enableAutomaticPings(15, TimeUnit.SECONDS);
                 LOGGER.info(
                     "New WebSocket connection from {}",
                     ctx.session.getRemoteSocketAddress() != null
@@ -339,6 +335,17 @@ public class WebInterface {
             ws.onMessage((ctx) -> handleReceivedMessages(ctx));
 
             ws.onError((ctx) -> {
+                //
+                if (shutdownInitiated.get()) {
+                    LOGGER.debug(
+                        "WebSocket error during shutdown: {}",
+                        ctx.session.getRemoteSocketAddress(),
+                        ctx.error()
+                    );
+                    removeConnection(ctx);
+                    return;
+                }
+
                 // A closed channel only means the connection was torn down abruptly,
                 // for example when the game exits while a browser is still connected.
                 if (ctx.error() instanceof ClosedChannelException) {
@@ -406,24 +413,7 @@ public class WebInterface {
      * @param ctx The WebSocket context to remove.
      */
     private void removeConnection(WsContext ctx) {
-        // Both onError and onClose can fire for the same connection.
-        // Only the call that actually removes it may decrement the counter,
-        // otherwise the shutdown wait below could be released too early.
-        boolean removed = connections.remove(ctx);
-        if (!removed) {
-            return;
-        }
-
-        if (!shutdownInitiated.get()) {
-            return;
-        }
-
-        synchronized (connectionsToClose) {
-            int remaining = connectionsToClose.decrementAndGet();
-            if (remaining == 0) {
-                connectionsToClose.notifyAll();
-            }
-        }
+        connections.remove(ctx);
     }
 
     public void shutdown() {
@@ -436,42 +426,17 @@ public class WebInterface {
             return;
         }
 
-        connectionsToClose = new AtomicInteger(connections.size());
-
-        connections.forEach((ctx) -> {
-            try {
-                // Initiates an asynchronous close of the connection.
-                ctx.session.close();
-            } catch (Exception e) {
-                LOGGER.warn(
-                    "Failed to close WebSocket connection: {}",
-                    ctx.session.getRemoteSocketAddress(),
-                    e
-                );
-            }
-        });
-
-        // Wait until all connections have been closed.
-        synchronized (connectionsToClose) {
-            while (connectionsToClose.get() != 0) {
-                try {
-                    connectionsToClose.wait(100);
-                } catch (InterruptedException e) {
-                    LOGGER.warn("Web interface shutdown interrupted", e);
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }
-
         // Server is not running.
-        // Since there is a tiny chance there were connections that needed cleaning up we return here instead of sooner.
         if (!isServerRunning.get()) {
             return;
         }
 
         LOGGER.info("Shutting down web interface");
-        server.stop();
+        try {
+            server.stop();
+        } catch (Exception e) {
+            LOGGER.warn("Web interface shutdown gave an error", e);
+        }
     }
 
     private String sanitizeMessage(String message) {
