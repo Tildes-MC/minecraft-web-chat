@@ -335,23 +335,13 @@ public class WebInterface {
             ws.onMessage((ctx) -> handleReceivedMessages(ctx));
 
             ws.onError((ctx) -> {
-                //
+                // If a shutdown is Initiated it is expected that there will be jetty related errors.
+                // Logging them on debug level should be good enough.
                 if (shutdownInitiated.get()) {
                     LOGGER.debug(
                         "WebSocket error during shutdown: {}",
                         ctx.session.getRemoteSocketAddress(),
                         ctx.error()
-                    );
-                    removeConnection(ctx);
-                    return;
-                }
-
-                // A closed channel only means the connection was torn down abruptly,
-                // for example when the game exits while a browser is still connected.
-                if (ctx.error() instanceof ClosedChannelException) {
-                    LOGGER.debug(
-                        "WebSocket channel closed abruptly: {}",
-                        ctx.session.getRemoteSocketAddress()
                     );
                 } else {
                     LOGGER.error("WebSocket error: ", ctx.error());
