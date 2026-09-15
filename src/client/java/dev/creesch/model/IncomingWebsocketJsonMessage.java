@@ -17,6 +17,7 @@ public class IncomingWebsocketJsonMessage {
     public enum MessageType {
         @SerializedName("chat")
         CHAT,
+
         @SerializedName("history")
         HISTORY,
     }

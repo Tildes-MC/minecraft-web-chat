@@ -29,86 +29,86 @@ public class ChatMessageRepository {
 
     // SQL queries
     private static final String CREATE_MESSAGES_TABLE_QUERY = """
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp BIGINT NOT NULL,
-            server_id TEXT NOT NULL,
-            server_name TEXT NOT NULL,
-            message_id TEXT NOT NULL,
-            message_json TEXT NOT NULL,
-            translations_json TEXT NOT NULL DEFAULT '{}',
-            is_ping BOOLEAN NOT NULL,
-            minecraft_version TEXT
-        )
-        """;
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp BIGINT NOT NULL,
+        server_id TEXT NOT NULL,
+        server_name TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        message_json TEXT NOT NULL,
+        translations_json TEXT NOT NULL DEFAULT '{}',
+        is_ping BOOLEAN NOT NULL,
+        minecraft_version TEXT
+    )
+    """;
 
     private static final String CREATE_INDEX_QUERY = """
-        CREATE INDEX IF NOT EXISTS idx_server_id_timestamp ON messages(server_id, timestamp DESC)
-        """;
+    CREATE INDEX IF NOT EXISTS idx_server_id_timestamp ON messages(server_id, timestamp DESC)
+    """;
 
     private static final String CREATE_VERSION_TABLE_QUERY = """
-        CREATE TABLE IF NOT EXISTS schema_version (
-            version INTEGER PRIMARY KEY
-        )
-        """;
+    CREATE TABLE IF NOT EXISTS schema_version (
+        version INTEGER PRIMARY KEY
+    )
+    """;
 
     private static final String SELECT_SCHEMA_VERSION_QUERY = """
-        SELECT version FROM schema_version
-        """;
+    SELECT version FROM schema_version
+    """;
 
     private static final String INSERT_SCHEMA_VERSION_QUERY = """
-        INSERT INTO schema_version (version) VALUES (?)
-        """;
+    INSERT INTO schema_version (version) VALUES (?)
+    """;
 
     private static final String INSERT_MESSAGE_QUERY = """
-        INSERT INTO messages (
-            timestamp,
-            server_id,
-            server_name,
-            message_id,
-            message_json,
-            translations_json,
-            is_ping,
-            minecraft_version
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """;
+    INSERT INTO messages (
+        timestamp,
+        server_id,
+        server_name,
+        message_id,
+        message_json,
+        translations_json,
+        is_ping,
+        minecraft_version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """;
 
     // Base query, needs formatting
     private static final String BASE_GET_MESSAGE_QUERY = """
-        SELECT
-            timestamp,
-            server_id,
-            server_name,
-            message_id,
-            message_json,
-            translations_json,
-            is_ping,
-            minecraft_version
-        FROM
-            messages
-        WHERE
-            server_id = ?
-        %s
-        ORDER BY
-            timestamp DESC
-        LIMIT
-            ?
-        """;
+    SELECT
+        timestamp,
+        server_id,
+        server_name,
+        message_id,
+        message_json,
+        translations_json,
+        is_ping,
+        minecraft_version
+    FROM
+        messages
+    WHERE
+        server_id = ?
+    %s
+    ORDER BY
+        timestamp DESC
+    LIMIT
+        ?
+    """;
 
     private static final String V2_MIGRATION_QUERY = """
-        ALTER TABLE messages ADD COLUMN translations_json TEXT NOT NULL DEFAULT '{}';
+    ALTER TABLE messages ADD COLUMN translations_json TEXT NOT NULL DEFAULT '{}';
 
-        UPDATE schema_version SET version = 2;
-        """;
+    UPDATE schema_version SET version = 2;
+    """;
 
     private static final String V3_MIGRATION_QUERY = """
-        ALTER TABLE messages RENAME COLUMN translations_json TO translations_json_old;
-        ALTER TABLE messages ADD COLUMN translations_json TEXT NOT NULL DEFAULT '{}';
-        UPDATE messages SET translations_json = translations_json_old;
-        ALTER TABLE messages DROP COLUMN translations_json_old;
+    ALTER TABLE messages RENAME COLUMN translations_json TO translations_json_old;
+    ALTER TABLE messages ADD COLUMN translations_json TEXT NOT NULL DEFAULT '{}';
+    UPDATE messages SET translations_json = translations_json_old;
+    ALTER TABLE messages DROP COLUMN translations_json_old;
 
-        UPDATE schema_version SET version = 3;
-        """;
+    UPDATE schema_version SET version = 3;
+    """;
 
     public ChatMessageRepository() {
         try {
