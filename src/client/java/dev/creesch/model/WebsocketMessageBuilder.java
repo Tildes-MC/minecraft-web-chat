@@ -353,55 +353,53 @@ public class WebsocketMessageBuilder {
         if (networkHandler == null) {
             return null;
         }
-        networkHandler
-            .getOnlinePlayers()
-            .forEach((player) -> {
-                GameProfile profile = player.getProfile(); // Contains UUID and name
-                String playerId = profile.id().toString();
-                String playerName = profile.name();
+        networkHandler.getOnlinePlayers().forEach((player) -> {
+            GameProfile profile = player.getProfile(); // Contains UUID and name
+            String playerId = profile.id().toString();
+            String playerName = profile.name();
 
-                Component playerDisplayName =
-                    player.getTabListDisplayName() != null
-                        ? player.getTabListDisplayName()
-                        : Component.literal(playerName);
-                JsonObject minecraftJsonObjectDisplayName;
-                try {
-                    minecraftJsonObjectDisplayName = toJsonObject(
-                        playerDisplayName,
-                        client.level.registryAccess()
-                    );
-                } catch (JsonParseException exception) {
-                    LOGGER.warn(
-                        "Failed to serialize chat message: " +
-                            playerDisplayName.getString()
-                    );
-                    LOGGER.warn("Exception info: ", exception);
+            Component playerDisplayName =
+                player.getTabListDisplayName() != null
+                    ? player.getTabListDisplayName()
+                    : Component.literal(playerName);
+            JsonObject minecraftJsonObjectDisplayName;
+            try {
+                minecraftJsonObjectDisplayName = toJsonObject(
+                    playerDisplayName,
+                    client.level.registryAccess()
+                );
+            } catch (JsonParseException exception) {
+                LOGGER.warn(
+                    "Failed to serialize chat message: " +
+                        playerDisplayName.getString()
+                );
+                LOGGER.warn("Exception info: ", exception);
 
-                    // Get plain string displayName and display that.
-                    minecraftJsonObjectDisplayName = new JsonObject();
-                    minecraftJsonObjectDisplayName.addProperty(
-                        "text",
-                        "Could not convert message: %s".formatted(
-                            playerDisplayName.getString()
-                        )
-                    );
-                }
+                // Get plain string displayName and display that.
+                minecraftJsonObjectDisplayName = new JsonObject();
+                minecraftJsonObjectDisplayName.addProperty(
+                    "text",
+                    "Could not convert message: %s".formatted(
+                        playerDisplayName.getString()
+                    )
+                );
+            }
 
-                // To get the texture we need to digg a little bit deeper.
-                // Note: This retrieves the texture URL. In theory, it is possible to fetch player textures from minecraft.
-                // In practice this is a messy afair because of how texture loading works. So it is easier to let the web client.
-                // Fetch the texture from mojang directly and cut the head out of it.
-                String playerTextureUrl = getPlayerTextureUrl(profile);
+            // To get the texture we need to digg a little bit deeper.
+            // Note: This retrieves the texture URL. In theory, it is possible to fetch player textures from minecraft.
+            // In practice this is a messy afair because of how texture loading works. So it is easier to let the web client.
+            // Fetch the texture from mojang directly and cut the head out of it.
+            String playerTextureUrl = getPlayerTextureUrl(profile);
 
-                PlayerListInfoEntry playerInfo = PlayerListInfoEntry.builder()
-                    .playerId(playerId)
-                    .playerName(playerName)
-                    .playerDisplayName(minecraftJsonObjectDisplayName)
-                    .playerTextureUrl(playerTextureUrl)
-                    .build();
+            PlayerListInfoEntry playerInfo = PlayerListInfoEntry.builder()
+                .playerId(playerId)
+                .playerName(playerName)
+                .playerDisplayName(minecraftJsonObjectDisplayName)
+                .playerTextureUrl(playerTextureUrl)
+                .build();
 
-                playerList.add(playerInfo);
-            });
+            playerList.add(playerInfo);
+        });
 
         // Explicitly use UTC time for consistency across different timezones
         long timestamp = Instant.now(Clock.systemUTC()).toEpochMilli();
