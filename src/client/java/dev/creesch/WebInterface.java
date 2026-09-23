@@ -316,11 +316,15 @@ public class WebInterface {
                 // So on connect make sure the list is send immediatly.
                 WebsocketJsonMessage playerListMessage =
                     WebsocketMessageBuilder.createPlayerList(client);
-                String jsonPlayerListMessage = gson.toJson(playerListMessage);
+                String jsonPlayerListMessage = playerListMessage == null
+                    ? null
+                    : gson.toJson(playerListMessage);
 
                 try {
                     ctx.send(jsonJoinMessage);
-                    ctx.send(jsonPlayerListMessage);
+                    if (jsonPlayerListMessage != null) {
+                        ctx.send(jsonPlayerListMessage);
+                    }
                 } catch (Exception e) {
                     LOGGER.info(jsonJoinMessage);
                     LOGGER.info(jsonPlayerListMessage);
@@ -514,7 +518,8 @@ public class WebInterface {
     }
 
     public void broadcastMessage(WebsocketJsonMessage message) {
-        if (server == null || connections == null || connections.isEmpty()) {
+        // Builders return null when there is nothing to send (e.g. no connection yet).
+        if (message == null || server == null || connections.isEmpty()) {
             return;
         }
         String jsonMessage = gson.toJson(message);
