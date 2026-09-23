@@ -25,20 +25,24 @@ class ModalManager {
 
     /**
      * @param {HTMLDivElement} container - Full-screen backdrop element.
-     * @param {HTMLDivElement} content - Centered box that holds the contents.
      * @param {HTMLButtonElement} closeButton - The "X" button in the top right.
      * @param {HTMLDivElement} body - Element the caller's contents are placed in.
      */
-    constructor(container, content, closeButton, body) {
+    constructor(container, closeButton, body) {
         this.#container = container;
         this.#body = body;
         this.#closeButton = closeButton;
 
-        // Close on the "X", a backdrop click, or Escape. Clicks inside the
-        // content box must not bubble up to the backdrop and close the modal.
+        // Close on the "X", a backdrop click, or Escape. Only a click that
+        // targets the backdrop itself counts: a drag that starts inside the
+        // content box (e.g. selecting text) and ends over the backdrop
+        // dispatches its click on the container, and must not close it.
         closeButton.addEventListener('click', () => this.close());
-        this.#container.addEventListener('click', () => this.close());
-        content.addEventListener('click', (event) => event.stopPropagation());
+        this.#container.addEventListener('click', (event) => {
+            if (event.target === this.#container) {
+                this.close();
+            }
+        });
         document.addEventListener('keydown', (event) => {
             if (this.#isOpen && event.key === 'Escape') {
                 this.close();
@@ -73,9 +77,6 @@ class ModalManager {
 const container = /** @type {HTMLDivElement} */ (
     querySelectorWithAssertion('#modal-container')
 );
-const content = /** @type {HTMLDivElement} */ (
-    querySelectorWithAssertion('#modal-content')
-);
 const closeButton = /** @type {HTMLButtonElement} */ (
     querySelectorWithAssertion('#modal-close')
 );
@@ -84,9 +85,4 @@ const body = /** @type {HTMLDivElement} */ (
 );
 
 // Export a singleton instance since only one modal can be shown at a time.
-export const modalManager = new ModalManager(
-    container,
-    content,
-    closeButton,
-    body,
-);
+export const modalManager = new ModalManager(container, closeButton, body);
