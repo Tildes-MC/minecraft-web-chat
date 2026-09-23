@@ -56,9 +56,29 @@ const COMPONENT_VALIDATION_TESTS = [
 
     // Fallback property validation
     [
-        'fallback must be a string',
+        'fallback must be a string or component',
         { translate: 'missing.key', fallback: 42 },
-        'Component.fallback is not a string',
+        'Component is not an object',
+    ],
+    [
+        'fallback can be a component',
+        { sprite: 'item/diamond', fallback: { text: 'gem', color: 'aqua' } },
+        undefined,
+    ],
+    [
+        'keybind must be a string',
+        { keybind: 42 },
+        'Component.keybind is not a string',
+    ],
+    [
+        'sprite must be a string',
+        { sprite: 42 },
+        'Component.sprite is not a string',
+    ],
+    [
+        'atlas must be a string',
+        { sprite: 'item/diamond', atlas: 42 },
+        'Component.atlas is not a string',
     ],
     [
         'fallback can be a string',
@@ -378,6 +398,33 @@ const COMPONENT_VALIDATION_TESTS = [
         undefined,
     ],
 
+    [
+        'show_item custom_name can be a component',
+        {
+            text: 'test',
+            hover_event: {
+                action: 'show_item',
+                id: 'minecraft:diamond_sword',
+                components: {
+                    'minecraft:custom_name': { text: 'Blade', color: 'red' },
+                },
+            },
+        },
+        undefined,
+    ],
+    [
+        'show_item custom_name component is validated',
+        {
+            text: 'test',
+            hover_event: {
+                action: 'show_item',
+                id: 'minecraft:diamond_sword',
+                components: { 'minecraft:custom_name': 42 },
+            },
+        },
+        'Component is not an object',
+    ],
+
     // Component depth
     [
         'component is too deep',
@@ -630,6 +677,24 @@ const COMPONENT_FORMATTING_TESTS = [
         '<span aria-label="64x Diamond">items</span>',
     ],
     [
+        'hover item with component custom name',
+        {
+            text: 'item',
+            hover_event: {
+                action: 'show_item',
+                id: 'minecraft:diamond_sword',
+                components: {
+                    'minecraft:custom_name': {
+                        translate: 'my.sword',
+                        color: 'red',
+                    },
+                },
+            },
+        },
+        { 'my.sword': 'Blade' },
+        '<span aria-label="Blade\n">item</span>',
+    ],
+    [
         'hover entity',
         {
             text: 'entity',
@@ -842,6 +907,58 @@ const COMPONENT_FORMATTING_TESTS = [
         },
         { 'argument.item.id.invalid': "Unknown item '%s'" },
         '<span class="mc-red">Unknown item \'<span class="mc-blue"><span class="mc-bold mc-dark-red">test</span></span>\'</span>',
+    ],
+
+    // Keybind rendering
+    [
+        'keybind uses resolved key name',
+        { keybind: 'key.jump' },
+        { 'key.jump': 'Jump', 'keybind:key.jump': 'Space' },
+        '<span>Space</span>',
+    ],
+    [
+        'keybind falls back to its name',
+        { keybind: 'key.jump' },
+        {},
+        '<span>key.jump</span>',
+    ],
+
+    // Sprite object rendering
+    [
+        'sprite in default atlas',
+        { sprite: 'minecraft:item/diamond' },
+        {},
+        '<span>[item/diamond]</span>',
+    ],
+    [
+        'sprite in explicit default atlas',
+        { sprite: 'item/diamond', atlas: 'minecraft:blocks' },
+        {},
+        '<span>[item/diamond]</span>',
+    ],
+    [
+        'sprite in other atlas',
+        { sprite: 'minecraft:item/diamond', atlas: 'minecraft:items' },
+        {},
+        '<span>[item/diamond@items]</span>',
+    ],
+    [
+        'sprite in modded atlas keeps namespace',
+        { sprite: 'mymod:gem', atlas: 'mymod:gems' },
+        {},
+        '<span>[mymod:gem@mymod:gems]</span>',
+    ],
+    [
+        'sprite with string fallback',
+        { sprite: 'item/diamond', fallback: 'gem' },
+        {},
+        '<span>gem</span>',
+    ],
+    [
+        'sprite with component fallback',
+        { sprite: 'item/diamond', fallback: { text: 'gem', color: 'aqua' } },
+        {},
+        '<span><span class="mc-aqua">gem</span></span>',
     ],
 
     // Player component rendering

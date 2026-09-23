@@ -4,9 +4,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.contents.KeybindContents;
+import net.minecraft.network.chat.contents.ObjectContents;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
@@ -14,6 +17,9 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 public class ClientTranslationUtils {
+
+    // Keybind names like "key.jump" are also translation keys, so resolved keybinds get their own prefix.
+    public static final String KEYBIND_PREFIX = "keybind:";
 
     /**
      * Extracts all translation keys from a Text object and returns a map of key-value pairs with their translations.
@@ -50,6 +56,22 @@ public class ClientTranslationUtils {
                     keys.putIfAbsent(stringArg, null); // Treat plain strings as potential keys. Highly unlikely to ever happen, maybe impossible? Doesn't hurt to account for it.
                 }
             }
+        }
+
+        if (text.getContents() instanceof KeybindContents keybindContent) {
+            // plainCopy drops siblings, so getString() is just the bound key (e.g. "Space")
+            keys.putIfAbsent(
+                KEYBIND_PREFIX + keybindContent.getName(),
+                text.plainCopy().getString()
+            );
+        }
+
+        if (text.getContents() instanceof ObjectContents objectContent) {
+            objectContent
+                .fallback()
+                .ifPresent((fallback) ->
+                    collectTranslationKeys(fallback, keys)
+                );
         }
 
         // Collect keys from siblings (e.g., appended text)
@@ -99,6 +121,11 @@ public class ClientTranslationUtils {
             String itemKey = itemStack.getItem().getDescriptionId();
             keys.putIfAbsent(itemKey, null);
 
+            Component customName = itemStack.get(DataComponents.CUSTOM_NAME);
+            if (customName != null) {
+                collectTranslationKeys(customName, keys);
+            }
+
             // Collect enchantment translation keys
             ItemEnchantments enchantments = itemStack.getEnchantments();
             for (Holder<Enchantment> enchantment : enchantments.keySet()) {
@@ -111,6 +138,9 @@ public class ClientTranslationUtils {
     private static void populateTranslations(Map<String, String> keys) {
         Language language = Language.getInstance(); // Client-side Language instance
         for (Map.Entry<String, String> entry : keys.entrySet()) {
+            if (entry.getValue() != null) {
+                continue; // Already resolved, e.g. keybinds
+            }
             entry.setValue(
                 language.getOrDefault(entry.getKey(), entry.getKey())
             ); // Fallback to key if translation is missing

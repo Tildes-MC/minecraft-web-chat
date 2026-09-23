@@ -69,13 +69,24 @@ const VALID_CLICK_EVENTS = [
 ];
 
 /** @type {(keyof Component)[]} */
-const CONTENT_ATTRIBUTES = ['text', 'translate', 'extra', 'player'];
+const CONTENT_ATTRIBUTES = [
+    'text',
+    'translate',
+    'extra',
+    'player',
+    'keybind',
+    'sprite',
+];
+
+// Must match ClientTranslationUtils.KEYBIND_PREFIX
+const KEYBIND_PREFIX = 'keybind:';
+const DEFAULT_ATLAS = 'minecraft:blocks';
 
 /**
  * @typedef {Object} Component
  * @property {string} [text] - Text content
  * @property {string} [translate] - Translation key
- * @property {string} [fallback] - Fallback value for translation.
+ * @property {string | Component} [fallback] - Fallback for a translation (string) or an object component
  * @property {(number | string | Component)[]} [with] - Translation parameters
  * @property {(number | string | Component)[]} [extra] - Additional components to append
  * @property {string} [color] - Text color - can be a named color or hex value
@@ -88,6 +99,9 @@ const CONTENT_ATTRIBUTES = ['text', 'translate', 'extra', 'player'];
  * @property {string} [insertion] - String to insert when the component is shift-clicked
  * @property {PlayerComponent} [player] - User data for displaying a player head
  * @property {boolean} [hat] - Whether to show a player hat for a player head.
+ * @property {string} [keybind] - Keybind name, e.g. `key.jump`
+ * @property {string} [sprite] - Atlas sprite id for an object component
+ * @property {string} [atlas] - Atlas id for a sprite, defaults to `minecraft:blocks`
  * @property {HoverEvent} [hover_event] - Hover event
  * @property {ClickEvent} [click_event] - Click event
  */
@@ -127,7 +141,7 @@ const CONTENT_ATTRIBUTES = ['text', 'translate', 'extra', 'player'];
  */
 
 /**
- * @typedef {{ "minecraft:custom_name": string; }} CustomNameItemComponent
+ * @typedef {{ "minecraft:custom_name": string | Component; }} CustomNameItemComponent
  */
 
 /**
@@ -406,10 +420,10 @@ export function assertIsComponent(component, path = []) {
             'minecraft:custom_name' in components &&
             typeof components['minecraft:custom_name'] !== 'string'
         ) {
-            throw new ComponentError(
-                'ItemComponents.minecraft:custom_name is not a string',
-                [...path, 'minecraft:custom_name'],
-            );
+            assertIsComponent(components['minecraft:custom_name'], [
+                ...path,
+                'minecraft:custom_name',
+            ]);
         }
 
         if ('minecraft:enchantments' in components) {
@@ -727,9 +741,27 @@ export function assertIsComponent(component, path = []) {
     }
 
     if ('fallback' in component && typeof component.fallback !== 'string') {
-        throw new ComponentError('Component.fallback is not a string', [
+        assertIsComponent(component.fallback, [...path, 'fallback']);
+    }
+
+    if ('keybind' in component && typeof component.keybind !== 'string') {
+        throw new ComponentError('Component.keybind is not a string', [
             ...path,
-            'fallback',
+            'keybind',
+        ]);
+    }
+
+    if ('sprite' in component && typeof component.sprite !== 'string') {
+        throw new ComponentError('Component.sprite is not a string', [
+            ...path,
+            'sprite',
+        ]);
+    }
+
+    if ('atlas' in component && typeof component.atlas !== 'string') {
+        throw new ComponentError('Component.atlas is not a string', [
+            ...path,
+            'atlas',
         ]);
     }
 
@@ -879,6 +911,21 @@ function idToTranslationKey(registry_id, translations) {
     }
 
     return registry_id;
+}
+
+/**
+ * Minecraft's default text for an atlas sprite object: `[sprite]` or `[sprite@atlas]`.
+ * @param {Component} component
+ * @returns {string}
+ */
+function spriteFallback(component) {
+    /** @param {string} id */
+    const shortName = (id) => id.replace(/^minecraft:/, '');
+    const sprite = shortName(component.sprite ?? '');
+    const atlas = component.atlas ?? DEFAULT_ATLAS;
+    return atlas === DEFAULT_ATLAS || atlas === shortName(DEFAULT_ATLAS)
+        ? `[${sprite}]`
+        : `[${sprite}@${shortName(atlas)}]`;
 }
 
 /**
@@ -1302,11 +1349,15 @@ function formatShowItemHoverEvent(hoverEvent, translations) {
     if (customName) {
         // Minecraft always shows custom names as aqua and italic in hover text
         contents.push(
-            formatComponent({
-                text: `${customName}\n`,
-                color: 'aqua',
-                italic: true,
-            }),
+            formatComponent(
+                {
+                    text: '',
+                    color: 'aqua',
+                    italic: true,
+                    extra: [customName, '\n'],
+                },
+                translations,
+            ),
         );
     } else {
         contents.push(
@@ -1690,9 +1741,31 @@ function formatComponent(component, translations = {}) {
                 component.translate,
                 component.with ?? [],
                 translations,
-                component.fallback,
+                typeof component.fallback === 'string'
+                    ? component.fallback
+                    : undefined,
             ),
         );
+    } else if (component.keybind) {
+        result.appendChild(
+            document.createTextNode(
+                translations[KEYBIND_PREFIX + component.keybind] ??
+                    component.keybind,
+            ),
+        );
+    } else if (component.sprite) {
+        // Sprites aren't rendered, so show the fallback like Minecraft does where it can't draw the object.
+        if (typeof component.fallback === 'object') {
+            result.appendChild(
+                formatComponent(component.fallback, translations),
+            );
+        } else {
+            result.appendChild(
+                document.createTextNode(
+                    component.fallback ?? spriteFallback(component),
+                ),
+            );
+        }
     } else if (component.player) {
         // For now, we just render a Steve head.
         const name = component.player.name || 'Unknown Player';
