@@ -202,7 +202,6 @@ public class WebsocketMessageBuilder {
         String minecraftVersion
     ) {
         // Back to objects we go
-        LOGGER.info(translationsJson);
         Type type = new TypeToken<Map<String, String>>() {}.getType();
         Map<String, String> translations = gson.fromJson(
             translationsJson,

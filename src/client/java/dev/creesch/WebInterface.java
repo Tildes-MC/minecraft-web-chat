@@ -163,7 +163,6 @@ public class WebInterface {
     }
 
     private void handleReceivedMessages(WsMessageContext ctx) {
-        LOGGER.info(ctx.message());
         // Parse received message from json
         IncomingWebsocketJsonMessage receivedMessage = gson.fromJson(
             ctx.message(),
