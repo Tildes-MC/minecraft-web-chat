@@ -10,6 +10,8 @@ import dev.creesch.storage.ChatMessageRepository;
 import dev.creesch.util.LocalNetworkAddressResolver;
 import dev.creesch.util.NamedLogger;
 import io.javalin.Javalin;
+import io.javalin.http.BadRequestResponse;
+import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.websocket.WsCloseStatus;
 import io.javalin.websocket.WsContext;
@@ -126,16 +128,14 @@ public class WebInterface {
                     LOGGER.warn(
                         "Unauthorized attempt to access subdirectory: " + uri
                     );
-                    ctx.status(401).result("Unauthorized access");
-                    return;
+                    throw new UnauthorizedResponse("Unauthorized access");
                 }
 
                 // Reject requests containing `..` (path traversal attack)
                 // Javelin also does this, this is just to be extra secure
                 if (uri.contains("..")) {
                     LOGGER.warn("Invalid path detected: " + uri);
-                    ctx.status(400).result("Invalid path");
-                    return;
+                    throw new BadRequestResponse("Invalid path");
                 }
 
                 // Security headers
