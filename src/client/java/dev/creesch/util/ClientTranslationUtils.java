@@ -69,7 +69,9 @@ public class ClientTranslationUtils {
         if (text.getContents() instanceof ObjectContents objectContent) {
             objectContent
                 .fallback()
-                .ifPresent(fallback -> collectTranslationKeys(fallback, keys));
+                .ifPresent((fallback) ->
+                    collectTranslationKeys(fallback, keys)
+                );
         }
 
         // Collect keys from siblings (e.g., appended text)
