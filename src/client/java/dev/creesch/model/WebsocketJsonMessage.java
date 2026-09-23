@@ -30,10 +30,13 @@ public class WebsocketJsonMessage {
     public enum MessageType {
         @SerializedName("chatMessage")
         CHAT_MESSAGE,
+
         @SerializedName("serverConnectionState")
         SERVER_CONNECTION_STATE,
+
         @SerializedName("historyMetaData")
         HISTORY_META_DATA,
+
         @SerializedName("serverPlayerList")
         SERVER_PLAYER_LIST,
     }
@@ -44,8 +47,10 @@ public class WebsocketJsonMessage {
     public enum ServerConnectionStates {
         @SerializedName("init")
         INIT,
+
         @SerializedName("join")
         JOIN,
+
         @SerializedName("disconnect")
         DISCONNECT,
     }
