@@ -49,6 +49,11 @@ public class WebInterface {
         "[\\n\\r§\u00A7\\u0000-\\u001F\\u200B-\\u200F\\u2028-\\u202F]"
     );
     private static final Pattern MULTIPLE_SPACES = Pattern.compile("\\s{2,}");
+    // Hosts a browser can reach a loopback-bound server through: "localhost" or an IP literal.
+    private static final Pattern LOOPBACK_HOST = Pattern.compile(
+        "^(localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(:\\d+)?$",
+        Pattern.CASE_INSENSITIVE
+    );
     private static final Pattern SUPPORTED_COMMANDS = Pattern.compile(
         "^/(msg|tell|w|me)(\\s.*|$)",
         Pattern.CASE_INSENSITIVE
@@ -355,12 +360,16 @@ public class WebInterface {
      * any website open in the user's browser could connect and chat as the player
      * (cross-site WebSocket hijacking). The chat page is served by this same server,
      * so a legitimate browser origin always matches the Host header of the upgrade request.
+     * When bound to loopback the Host must also be localhost itself: a DNS name that resolves
+     * to 127.0.0.1 (DNS rebinding) would otherwise make a foreign origin match its own Host.
+     * With LAN access enabled users may reach the server by any hostname, so only the
+     * Origin/Host comparison applies there.
      * Requests without an Origin header (non-browser clients) are allowed.
      *
      * @param ctx The WebSocket context of the new connection.
      * @return True if the connection is allowed.
      */
-    private static boolean isAllowedOrigin(WsContext ctx) {
+    private boolean isAllowedOrigin(WsContext ctx) {
         String origin = ctx.header("Origin");
         if (origin == null || origin.isEmpty()) {
             return true;
@@ -368,6 +377,9 @@ public class WebInterface {
 
         String host = ctx.header("Host");
         if (host == null || host.isEmpty()) {
+            return false;
+        }
+        if (!lanEnabled && !LOOPBACK_HOST.matcher(host).matches()) {
             return false;
         }
 
