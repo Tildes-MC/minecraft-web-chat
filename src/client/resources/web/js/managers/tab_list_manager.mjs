@@ -175,7 +175,9 @@ class TabListManager {
             ...this.#players.map((match, index) => {
                     const li = document.createElement('li');
                     // Using mousedown because clicking causes blur event on chat input hiding the selection.
-                    li.addEventListener('mousedown', () => {
+                    // preventDefault keeps focus in the chat input after the name is inserted.
+                    li.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
                         this.#insertPlayerName();
                     });
                     li.addEventListener('mouseenter', () => {
