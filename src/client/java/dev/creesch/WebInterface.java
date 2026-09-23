@@ -176,6 +176,10 @@ public class WebInterface {
                     receivedMessage.getPayload(),
                     String.class
                 );
+                LOGGER.info("Received WebSocket message: {}", message);
+
+                // Sanitize the message
+                message = sanitizeMessage(message);
                 if (message.trim().isEmpty()) {
                     LOGGER.warn(
                         "Received an empty message from {}",
@@ -183,10 +187,6 @@ public class WebInterface {
                     );
                     return;
                 }
-                LOGGER.info("Received WebSocket message: {}", message);
-
-                // Sanitize the message
-                message = sanitizeMessage(message);
 
                 // Send the sanitized message to Minecraft chat
                 sendMinecraftMessage(message);
