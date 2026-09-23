@@ -197,6 +197,14 @@ public class WebInterface {
                     HistoryPayload.class
                 );
                 int requestedLimit = historyPayload.getLimit();
+                if (requestedLimit <= 0) {
+                    LOGGER.warn(
+                        "Ignoring history request with invalid limit {} from {}",
+                        requestedLimit,
+                        ctx.session.getRemoteSocketAddress()
+                    );
+                    return;
+                }
                 int moreHistoryRequestedLimit = requestedLimit + 1; // Used further down to determine if there are more messages available in history.
                 LOGGER.info(
                     "Received history request: {}",
@@ -334,7 +342,18 @@ public class WebInterface {
                 removeConnection(ctx);
             });
 
-            ws.onMessage((ctx) -> handleReceivedMessages(ctx));
+            ws.onMessage((ctx) -> {
+                // Client input is untrusted. An uncaught exception here makes Javalin close the session.
+                try {
+                    handleReceivedMessages(ctx);
+                } catch (Exception e) {
+                    LOGGER.warn(
+                        "Ignoring malformed WebSocket message from {}",
+                        ctx.session.getRemoteSocketAddress(),
+                        e
+                    );
+                }
+            });
 
             ws.onError((ctx) -> {
                 // If a shutdown is Initiated it is expected that there will be jetty related errors.
