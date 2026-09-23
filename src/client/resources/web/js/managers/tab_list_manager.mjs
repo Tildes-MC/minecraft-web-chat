@@ -173,29 +173,29 @@ class TabListManager {
 
         ul.replaceChildren(
             ...this.#players.map((match, index) => {
-                    const li = document.createElement('li');
-                    // Using mousedown because clicking causes blur event on chat input hiding the selection.
-                    // preventDefault keeps focus in the chat input after the name is inserted.
-                    li.addEventListener('mousedown', (e) => {
-                        e.preventDefault();
-                        this.#insertPlayerName();
-                    });
-                    li.addEventListener('mouseenter', () => {
-                        this.#updateSelection(index);
-                    });
+                const li = document.createElement('li');
+                // Using mousedown because clicking causes blur event on chat input hiding the selection.
+                // preventDefault keeps focus in the chat input after the name is inserted.
+                li.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    this.#insertPlayerName();
+                });
+                li.addEventListener('mouseenter', () => {
+                    this.#updateSelection(index);
+                });
 
-                    const displayName = formatComponentToString(
-                        match.playerDisplayName,
-                    );
-                    const displayNameUnchanged =
-                        displayName.toLocaleLowerCase() ===
-                        match.playerName.toLocaleLowerCase();
-                    li.textContent = displayNameUnchanged
-                        ? displayName
-                        : `${displayName} (${match.playerName})`;
+                const displayName = formatComponentToString(
+                    match.playerDisplayName,
+                );
+                const displayNameUnchanged =
+                    displayName.toLocaleLowerCase() ===
+                    match.playerName.toLocaleLowerCase();
+                li.textContent = displayNameUnchanged
+                    ? displayName
+                    : `${displayName} (${match.playerName})`;
 
-                    return li;
-                }),
+                return li;
+            }),
         );
 
         this.#updateSelection(0);

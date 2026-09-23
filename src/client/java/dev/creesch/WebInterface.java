@@ -315,9 +315,10 @@ public class WebInterface {
                 // So on connect make sure the list is send immediatly.
                 WebsocketJsonMessage playerListMessage =
                     WebsocketMessageBuilder.createPlayerList(client);
-                String jsonPlayerListMessage = playerListMessage == null
-                    ? null
-                    : gson.toJson(playerListMessage);
+                String jsonPlayerListMessage =
+                    playerListMessage == null
+                        ? null
+                        : gson.toJson(playerListMessage);
 
                 try {
                     ctx.send(jsonJoinMessage);
