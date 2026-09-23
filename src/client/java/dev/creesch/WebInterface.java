@@ -10,6 +10,8 @@ import dev.creesch.storage.ChatMessageRepository;
 import dev.creesch.util.LocalNetworkAddressResolver;
 import dev.creesch.util.NamedLogger;
 import io.javalin.Javalin;
+import io.javalin.http.BadRequestResponse;
+import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.websocket.WsCloseStatus;
 import io.javalin.websocket.WsContext;
@@ -49,6 +51,11 @@ public class WebInterface {
         "[\\n\\r§\u00A7\\u0000-\\u001F\\u200B-\\u200F\\u2028-\\u202F]"
     );
     private static final Pattern MULTIPLE_SPACES = Pattern.compile("\\s{2,}");
+    // Hosts a browser can reach a loopback-bound server through: "localhost" or an IP literal.
+    private static final Pattern LOOPBACK_HOST = Pattern.compile(
+        "^(localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(:\\d+)?$",
+        Pattern.CASE_INSENSITIVE
+    );
     private static final Pattern SUPPORTED_COMMANDS = Pattern.compile(
         "^/(msg|tell|w|me)(\\s.*|$)",
         Pattern.CASE_INSENSITIVE
@@ -121,16 +128,14 @@ public class WebInterface {
                     LOGGER.warn(
                         "Unauthorized attempt to access subdirectory: " + uri
                     );
-                    ctx.status(401).result("Unauthorized access");
-                    return;
+                    throw new UnauthorizedResponse("Unauthorized access");
                 }
 
                 // Reject requests containing `..` (path traversal attack)
                 // Javelin also does this, this is just to be extra secure
                 if (uri.contains("..")) {
                     LOGGER.warn("Invalid path detected: " + uri);
-                    ctx.status(400).result("Invalid path");
-                    return;
+                    throw new BadRequestResponse("Invalid path");
                 }
 
                 // Security headers
@@ -158,7 +163,6 @@ public class WebInterface {
     }
 
     private void handleReceivedMessages(WsMessageContext ctx) {
-        LOGGER.info(ctx.message());
         // Parse received message from json
         IncomingWebsocketJsonMessage receivedMessage = gson.fromJson(
             ctx.message(),
@@ -171,6 +175,10 @@ public class WebInterface {
                     receivedMessage.getPayload(),
                     String.class
                 );
+                LOGGER.info("Received WebSocket message: {}", message);
+
+                // Sanitize the message
+                message = sanitizeMessage(message);
                 if (message.trim().isEmpty()) {
                     LOGGER.warn(
                         "Received an empty message from {}",
@@ -178,10 +186,6 @@ public class WebInterface {
                     );
                     return;
                 }
-                LOGGER.info("Received WebSocket message: {}", message);
-
-                // Sanitize the message
-                message = sanitizeMessage(message);
 
                 // Send the sanitized message to Minecraft chat
                 sendMinecraftMessage(message);
@@ -192,6 +196,14 @@ public class WebInterface {
                     HistoryPayload.class
                 );
                 int requestedLimit = historyPayload.getLimit();
+                if (requestedLimit <= 0) {
+                    LOGGER.warn(
+                        "Ignoring history request with invalid limit {} from {}",
+                        requestedLimit,
+                        ctx.session.getRemoteSocketAddress()
+                    );
+                    return;
+                }
                 int moreHistoryRequestedLimit = requestedLimit + 1; // Used further down to determine if there are more messages available in history.
                 LOGGER.info(
                     "Received history request: {}",
@@ -303,11 +315,16 @@ public class WebInterface {
                 // So on connect make sure the list is send immediatly.
                 WebsocketJsonMessage playerListMessage =
                     WebsocketMessageBuilder.createPlayerList(client);
-                String jsonPlayerListMessage = gson.toJson(playerListMessage);
+                String jsonPlayerListMessage =
+                    playerListMessage == null
+                        ? null
+                        : gson.toJson(playerListMessage);
 
                 try {
                     ctx.send(jsonJoinMessage);
-                    ctx.send(jsonPlayerListMessage);
+                    if (jsonPlayerListMessage != null) {
+                        ctx.send(jsonPlayerListMessage);
+                    }
                 } catch (Exception e) {
                     LOGGER.info(jsonJoinMessage);
                     LOGGER.info(jsonPlayerListMessage);
@@ -329,7 +346,18 @@ public class WebInterface {
                 removeConnection(ctx);
             });
 
-            ws.onMessage((ctx) -> handleReceivedMessages(ctx));
+            ws.onMessage((ctx) -> {
+                // Client input is untrusted. An uncaught exception here makes Javalin close the session.
+                try {
+                    handleReceivedMessages(ctx);
+                } catch (Exception e) {
+                    LOGGER.warn(
+                        "Ignoring malformed WebSocket message from {}",
+                        ctx.session.getRemoteSocketAddress(),
+                        e
+                    );
+                }
+            });
 
             ws.onError((ctx) -> {
                 // If a shutdown is Initiated it is expected that there will be jetty related errors.
@@ -355,12 +383,16 @@ public class WebInterface {
      * any website open in the user's browser could connect and chat as the player
      * (cross-site WebSocket hijacking). The chat page is served by this same server,
      * so a legitimate browser origin always matches the Host header of the upgrade request.
+     * When bound to loopback the Host must also be localhost itself: a DNS name that resolves
+     * to 127.0.0.1 (DNS rebinding) would otherwise make a foreign origin match its own Host.
+     * With LAN access enabled users may reach the server by any hostname, so only the
+     * Origin/Host comparison applies there.
      * Requests without an Origin header (non-browser clients) are allowed.
      *
      * @param ctx The WebSocket context of the new connection.
      * @return True if the connection is allowed.
      */
-    private static boolean isAllowedOrigin(WsContext ctx) {
+    private boolean isAllowedOrigin(WsContext ctx) {
         String origin = ctx.header("Origin");
         if (origin == null || origin.isEmpty()) {
             return true;
@@ -368,6 +400,9 @@ public class WebInterface {
 
         String host = ctx.header("Host");
         if (host == null || host.isEmpty()) {
+            return false;
+        }
+        if (!lanEnabled && !LOOPBACK_HOST.matcher(host).matches()) {
             return false;
         }
 
@@ -483,7 +518,8 @@ public class WebInterface {
     }
 
     public void broadcastMessage(WebsocketJsonMessage message) {
-        if (server == null || connections == null || connections.isEmpty()) {
+        // Builders return null when there is nothing to send (e.g. no connection yet).
+        if (message == null || server == null || connections.isEmpty()) {
             return;
         }
         String jsonMessage = gson.toJson(message);

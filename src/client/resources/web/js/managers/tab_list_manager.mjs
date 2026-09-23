@@ -154,7 +154,17 @@ class TabListManager {
      * @param {PlayerInfo[]} matches
      */
     #populateList(matches) {
-        this.#players = matches;
+        // Keep only what is rendered so keyboard navigation cannot select
+        // a player that is not shown.
+        this.#players = matches
+            // Show names in alphabetical order.
+            .sort((a, b) =>
+                formatComponentToString(a.playerDisplayName).localeCompare(
+                    formatComponentToString(b.playerDisplayName),
+                ),
+            )
+            // Show only first 5 matches.
+            .slice(0, 5);
 
         const ul = tabListElement.querySelector('ul');
         if (!ul) {
@@ -162,37 +172,30 @@ class TabListManager {
         }
 
         ul.replaceChildren(
-            ...matches
-                // Show names in alphabetical order.
-                .sort((a, b) =>
-                    formatComponentToString(a.playerDisplayName).localeCompare(
-                        formatComponentToString(b.playerDisplayName),
-                    ),
-                )
-                // Show only first 5 matches.
-                .slice(0, 5)
-                .map((match, index) => {
-                    const li = document.createElement('li');
-                    // Using mousedown because clicking causes blur event on chat input hiding the selection.
-                    li.addEventListener('mousedown', () => {
-                        this.#insertPlayerName();
-                    });
-                    li.addEventListener('mouseenter', () => {
-                        this.#updateSelection(index);
-                    });
+            ...this.#players.map((match, index) => {
+                const li = document.createElement('li');
+                // Using mousedown because clicking causes blur event on chat input hiding the selection.
+                // preventDefault keeps focus in the chat input after the name is inserted.
+                li.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    this.#insertPlayerName();
+                });
+                li.addEventListener('mouseenter', () => {
+                    this.#updateSelection(index);
+                });
 
-                    const displayName = formatComponentToString(
-                        match.playerDisplayName,
-                    );
-                    const displayNameUnchanged =
-                        displayName.toLocaleLowerCase() ===
-                        match.playerName.toLocaleLowerCase();
-                    li.textContent = displayNameUnchanged
-                        ? displayName
-                        : `${displayName} (${match.playerName})`;
+                const displayName = formatComponentToString(
+                    match.playerDisplayName,
+                );
+                const displayNameUnchanged =
+                    displayName.toLocaleLowerCase() ===
+                    match.playerName.toLocaleLowerCase();
+                li.textContent = displayNameUnchanged
+                    ? displayName
+                    : `${displayName} (${match.playerName})`;
 
-                    return li;
-                }),
+                return li;
+            }),
         );
 
         this.#updateSelection(0);
